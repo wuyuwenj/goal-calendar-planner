@@ -121,8 +121,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // For Expo Go, don't specify scheme - it will use exp:// automatically
-      const redirectUri = makeRedirectUri();
+      // Use the app's custom scheme for development builds
+      const redirectUri = makeRedirectUri({
+        scheme: 'trellis',
+      });
 
       console.log('Redirect URI:', redirectUri);
 
