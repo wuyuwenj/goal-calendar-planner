@@ -53,7 +53,10 @@ export interface User {
   googleConnected: boolean;
 }
 
+export type GoalCategory = 'learning' | 'health' | 'career' | 'creative' | 'other';
+
 export interface OnboardingData {
+  category?: GoalCategory;
   title: string;
   description: string;
   currentLevel: ExperienceLevel;

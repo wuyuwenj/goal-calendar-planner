@@ -1,62 +1,62 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Sprout, Leaf, TreeDeciduous, Trophy } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Target, Dumbbell, TrendingUp, Palette, Sparkles } from 'lucide-react-native';
 import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StepIndicator } from '../../components/StepIndicator';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useGoalStore } from '../../store/goal';
-import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
-import type { ExperienceLevel } from '../../types';
+import { COLORS, SPACING, TYPOGRAPHY, RADIUS, SHADOWS } from '../../constants/theme';
+import type { GoalCategory } from '../../types';
 
-interface LevelOption {
-  value: ExperienceLevel;
-  label: string;
-  description: string;
+interface CategoryOption {
+  id: GoalCategory;
   icon: React.ReactNode;
-  placeholder: string;
+  title: string;
+  description: string;
 }
 
-const LEVEL_OPTIONS: LevelOption[] = [
+const CATEGORIES: CategoryOption[] = [
   {
-    value: 'beginner',
-    label: 'Complete Beginner',
-    description: 'Never tried this before',
-    icon: <Sprout size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I have never done this before',
+    id: 'learning',
+    icon: <Target size={24} color={COLORS.primary.forest} />,
+    title: 'Learning a new skill',
+    description: 'Guitar, coding, language, etc.',
   },
   {
-    value: 'some_experience',
-    label: 'Some Experience',
-    description: 'Tried a few times',
-    icon: <Leaf size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I have tried a few times but never stuck with it',
+    id: 'health',
+    icon: <Dumbbell size={24} color={COLORS.primary.forest} />,
+    title: 'Health & Fitness',
+    description: 'Running, gym, diet, wellness',
   },
   {
-    value: 'intermediate',
-    label: 'Intermediate',
-    description: 'Comfortable with basics',
-    icon: <TreeDeciduous size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I do this regularly and want to improve',
+    id: 'career',
+    icon: <TrendingUp size={24} color={COLORS.primary.forest} />,
+    title: 'Career Growth',
+    description: 'Promotion, skills, networking',
   },
   {
-    value: 'advanced',
-    label: 'Advanced',
-    description: 'Looking to master',
-    icon: <Trophy size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I have significant experience and want to reach expert level',
+    id: 'creative',
+    icon: <Palette size={24} color={COLORS.primary.forest} />,
+    title: 'Creative Project',
+    description: 'Writing, art, music, design',
+  },
+  {
+    id: 'other',
+    icon: <Sparkles size={24} color={COLORS.primary.forest} />,
+    title: 'Something else',
+    description: 'Personal goals, habits, etc.',
   },
 ];
 
-function LevelCard({
-  option,
+function CategoryCard({
+  category,
   isSelected,
   onSelect,
   index,
 }: {
-  option: LevelOption;
+  category: CategoryOption;
   isSelected: boolean;
   onSelect: () => void;
   index: number;
@@ -84,19 +84,19 @@ function LevelCard({
       >
         <Animated.View
           style={[
-            styles.levelCard,
-            isSelected && styles.levelCardSelected,
+            styles.categoryCard,
+            isSelected && styles.categoryCardSelected,
             animatedStyle,
           ]}
         >
           <View style={[styles.iconContainer, isSelected && styles.iconContainerSelected]}>
-            {option.icon}
+            {category.icon}
           </View>
-          <View style={styles.levelContent}>
-            <Text style={[styles.levelLabel, isSelected && styles.levelLabelSelected]}>
-              {option.label}
+          <View style={styles.categoryContent}>
+            <Text style={[styles.categoryTitle, isSelected && styles.categoryTitleSelected]}>
+              {category.title}
             </Text>
-            <Text style={styles.levelDescription}>{option.description}</Text>
+            <Text style={styles.categoryDescription}>{category.description}</Text>
           </View>
         </Animated.View>
       </Pressable>
@@ -104,72 +104,50 @@ function LevelCard({
   );
 }
 
-export default function LevelScreen() {
+export default function IntentScreen() {
   const router = useRouter();
   const { onboardingData, setOnboardingData } = useGoalStore();
-  const [level, setLevel] = useState<ExperienceLevel | null>(
-    onboardingData.currentLevel || null
+  const [selectedCategory, setSelectedCategory] = useState<GoalCategory | null>(
+    onboardingData.category || null
   );
-  const [details, setDetails] = useState(onboardingData.levelDetails || '');
 
-  const selectedOption = LEVEL_OPTIONS.find((l) => l.value === level);
-  const goalTitle = onboardingData.title || 'this goal';
+  const canProceed = selectedCategory !== null;
 
   const handleBack = () => {
     router.back();
   };
 
   const handleNext = () => {
-    if (level) {
-      setOnboardingData({ currentLevel: level, levelDetails: details });
-      router.push('/onboarding/timeline');
+    if (selectedCategory) {
+      setOnboardingData({ category: selectedCategory });
+      router.push('./goal' as any);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={6} currentStep={3} />
+          <StepIndicator totalSteps={6} currentStep={1} />
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
-            <Text style={styles.title}>
-              What's your experience with{'\n'}
-              <Text style={styles.goalHighlight}>{goalTitle}</Text>?
-            </Text>
+            <Text style={styles.title}>What brings you to Trellis?</Text>
             <Text style={styles.subtitle}>
-              This helps us create the perfect plan for you
+              This helps us personalize your experience
             </Text>
           </Animated.View>
 
-          <View style={styles.levelsList}>
-            {LEVEL_OPTIONS.map((option, index) => (
-              <LevelCard
-                key={option.value}
-                option={option}
-                isSelected={level === option.value}
-                onSelect={() => setLevel(option.value)}
+          <View style={styles.categoriesList}>
+            {CATEGORIES.map((category, index) => (
+              <CategoryCard
+                key={category.id}
+                category={category}
+                isSelected={selectedCategory === category.id}
+                onSelect={() => setSelectedCategory(category.id)}
                 index={index}
               />
             ))}
           </View>
-
-          {selectedOption && (
-            <Animated.View entering={FadeInUp.duration(300)} style={styles.detailsSection}>
-              <Input
-                label="Tell us more about your experience (optional)"
-                value={details}
-                onChangeText={setDetails}
-                placeholder={selectedOption.placeholder}
-                multiline
-                numberOfLines={3}
-              />
-            </Animated.View>
-          )}
         </View>
       </ScrollView>
 
@@ -188,7 +166,7 @@ export default function LevelScreen() {
         <View style={styles.nextButtonWrapper}>
           <Button
             onPress={handleNext}
-            disabled={!level}
+            disabled={!canProceed}
             icon={<ChevronRight size={20} color={COLORS.white} />}
           >
             Continue
@@ -218,19 +196,15 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.h2,
     color: COLORS.secondary.bark,
     marginBottom: SPACING.xs,
-    lineHeight: 32,
-  },
-  goalHighlight: {
-    color: COLORS.primary.forest,
   },
   subtitle: {
     ...TYPOGRAPHY.body,
     color: COLORS.secondary.warm,
   },
-  levelsList: {
+  categoriesList: {
     gap: SPACING.md,
   },
-  levelCard: {
+  categoryCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.md,
@@ -240,7 +214,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.secondary.sand,
     gap: SPACING.md,
   },
-  levelCardSelected: {
+  categoryCardSelected: {
     borderColor: COLORS.primary.forest,
     backgroundColor: COLORS.primary.light,
   },
@@ -255,24 +229,21 @@ const styles = StyleSheet.create({
   iconContainerSelected: {
     backgroundColor: COLORS.white,
   },
-  levelContent: {
+  categoryContent: {
     flex: 1,
   },
-  levelLabel: {
+  categoryTitle: {
     ...TYPOGRAPHY.body,
     fontWeight: '600',
     color: COLORS.secondary.bark,
     marginBottom: 2,
   },
-  levelLabelSelected: {
+  categoryTitleSelected: {
     color: COLORS.primary.forest,
   },
-  levelDescription: {
+  categoryDescription: {
     ...TYPOGRAPHY.bodySmall,
     color: COLORS.secondary.warm,
-  },
-  detailsSection: {
-    marginTop: SPACING.lg,
   },
   footer: {
     flexDirection: 'row',

@@ -42,7 +42,7 @@ export default function Dashboard() {
   const loadData = async () => {
     const goals = await fetchGoals();
     if (goals.length === 0) {
-      router.replace('/onboarding');
+      router.replace('/onboarding/welcome' as any);
       return;
     }
     if (goals[0]) {
@@ -75,7 +75,7 @@ export default function Dashboard() {
           <Text style={styles.emptySubtitle}>
             Plant the seed for your first goal and watch it grow
           </Text>
-          <Button onPress={() => router.push('/onboarding')}>
+          <Button onPress={() => router.push('/onboarding/welcome' as any)}>
             Create Goal
           </Button>
         </View>
