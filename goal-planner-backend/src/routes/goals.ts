@@ -4,6 +4,7 @@ import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { CreateGoalSchema, UpdateGoalSchema } from '../types';
 import { createGoalWithPlan, getGoalProgress } from '../services/planner';
 import { deleteGoalCalendar, createGoalCalendar, syncTasksToCalendar } from '../services/calendar';
+import { queueGoalCreation, getPendingGoalStatus } from '../services/jobQueue';
 
 export async function goalRoutes(fastify: FastifyInstance) {
   // Apply auth to all routes
@@ -108,12 +109,71 @@ export async function goalRoutes(fastify: FastifyInstance) {
 
       console.log(`Route: Response size: ${JSON.stringify(response).length} bytes`);
       return response;
-    } catch (error) {
-      console.error('Failed to create goal:', error);
+    } catch (error: any) {
+      const errorMessage = error.message || 'Unknown error';
+      const isRateLimited = error.status === 429 ||
+                           errorMessage.toLowerCase().includes('rate') ||
+                           errorMessage.toLowerCase().includes('quota') ||
+                           errorMessage.toLowerCase().includes('resource exhausted');
+
+      console.error('Failed to create goal:', errorMessage);
+
+      // If rate limited, queue for later processing
+      if (isRateLimited) {
+        console.log('Route: Rate limited, queueing goal creation for later...');
+        const pendingId = await queueGoalCreation(req.profileId, input);
+
+        return reply.status(202).send({
+          pending: true,
+          pendingId,
+          message: 'Our servers are busy. Your goal is being processed and will be ready in a few minutes.',
+          code: 'QUEUED',
+        });
+      }
+
       return reply.status(500).send({
-        error: error instanceof Error ? error.message : 'Failed to create goal',
+        error: errorMessage,
       });
     }
+  });
+
+  // Check pending goal status
+  fastify.get<{ Params: { pendingId: string } }>('/pending/:pendingId', async (request, reply) => {
+    const req = request as AuthenticatedRequest;
+    const { pendingId } = request.params;
+
+    const status = await getPendingGoalStatus(pendingId);
+
+    if (status.status === 'not_found') {
+      return reply.status(404).send({ error: 'Pending goal not found' });
+    }
+
+    // If completed, return the full goal
+    if (status.status === 'completed' && status.goalId) {
+      const goal = await prisma.goal.findFirst({
+        where: {
+          id: status.goalId,
+          profileId: req.profileId,
+        },
+        include: {
+          tasks: {
+            orderBy: [{ weekNumber: 'asc' }, { scheduledDate: 'asc' }],
+          },
+        },
+      });
+
+      if (goal) {
+        return {
+          status: 'completed',
+          goal,
+        };
+      }
+    }
+
+    return {
+      status: status.status,
+      error: status.error,
+    };
   });
 
   // Update goal

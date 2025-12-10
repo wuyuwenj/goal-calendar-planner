@@ -3,6 +3,7 @@ import { generatePlan } from './ai';
 import { createGoalCalendar, syncTasksToCalendar } from './calendar';
 import { CreateGoalInput, GeneratedPlan } from '../types';
 import { addDays, startOfWeek, addWeeks, differenceInWeeks } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 
 interface TaskToCreate {
   id: string;
@@ -77,7 +78,13 @@ export async function createGoalWithPlan(
   console.log('Planner: Goal created');
 
   // Create tasks from plan (batch insert for performance)
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+  // Use user's timezone to calculate the correct week start
+  const userNow = toZonedTime(new Date(), profile.timezone);
+  const weekStart = startOfWeek(userNow, { weekStartsOn: 0 });
+
+  // Get today's date in user's timezone (to avoid scheduling in the past)
+  const todayInUserTz = new Date(userNow.getFullYear(), userNow.getMonth(), userNow.getDate());
+
   const taskDataList: Array<{
     goalId: string;
     title: string;
@@ -90,16 +97,31 @@ export async function createGoalWithPlan(
 
   for (const week of plan.weeklyPlans) {
     for (const task of week.tasks) {
-      const taskDate = addDays(
+      // Calculate the task date in user's timezone
+      let localTaskDate = addDays(
         addWeeks(weekStart, week.weekNumber - 1),
         task.dayOfWeek
       );
+
+      // If the task date is in the past (before today), push it forward by a week
+      // This handles the case where user creates a goal mid-week
+      if (week.weekNumber === 1 && localTaskDate < todayInUserTz) {
+        localTaskDate = addDays(localTaskDate, 7);
+      }
+
+      // Store as UTC midnight for that logical date
+      // This ensures "Tuesday Dec 10" stays as Dec 10 regardless of timezone
+      const utcDate = new Date(Date.UTC(
+        localTaskDate.getFullYear(),
+        localTaskDate.getMonth(),
+        localTaskDate.getDate()
+      ));
 
       taskDataList.push({
         goalId: goal.id,
         title: task.title,
         description: task.description,
-        scheduledDate: taskDate,
+        scheduledDate: utcDate,
         scheduledTime: task.time,
         durationMinutes: task.durationMinutes,
         weekNumber: week.weekNumber,

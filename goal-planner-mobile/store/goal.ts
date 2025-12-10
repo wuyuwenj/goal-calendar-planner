@@ -11,6 +11,12 @@ import type {
   Timeline,
 } from '../types';
 
+interface PendingGoalResult {
+  pending: true;
+  pendingId: string;
+  message: string;
+}
+
 interface GoalState {
   currentGoal: Goal | null;
   goals: Goal[];
@@ -19,6 +25,7 @@ interface GoalState {
   progress: GoalProgress | null;
   isLoading: boolean;
   error: string | null;
+  pendingGoalId: string | null;
 
   // Onboarding
   onboardingData: Partial<OnboardingData>;
@@ -28,7 +35,9 @@ interface GoalState {
   // Goal actions
   fetchGoals: () => Promise<Goal[]>;
   fetchGoalById: (id: string) => Promise<void>;
-  createGoal: (data: OnboardingData) => Promise<Goal>;
+  createGoal: (data: OnboardingData) => Promise<Goal | PendingGoalResult>;
+  checkPendingGoal: (pendingId: string) => Promise<{ status: string; goal?: Goal; error?: string }>;
+  clearPendingGoal: () => void;
   deleteGoal: (id: string) => Promise<void>;
 
   // Task actions
@@ -46,7 +55,7 @@ interface GoalState {
   ) => Promise<void>;
 
   // Calendar sync
-  syncToCalendar: (goalId: string) => Promise<{ success: boolean; needsAuth?: boolean; synced?: number; error?: string }>;
+  syncToCalendar: (goalId: string, force?: boolean) => Promise<{ success: boolean; needsAuth?: boolean; synced?: number; error?: string }>;
 }
 
 function calculateTargetDate(timeline: Timeline, customWeeks?: number): string {
@@ -72,6 +81,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   progress: null,
   isLoading: false,
   error: null,
+  pendingGoalId: null,
   onboardingData: {},
 
   setOnboardingData: (data) => {
@@ -123,9 +133,9 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   createGoal: async (data: OnboardingData) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, pendingGoalId: null });
     try {
-      const response = await apiClient.post<CreateGoalResponse>('/api/goals', {
+      const response = await apiClient.post<CreateGoalResponse | PendingGoalResult>('/api/goals', {
         title: data.title,
         description: data.description || data.levelDetails,
         currentLevel: data.currentLevel,
@@ -133,14 +143,49 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         availability: data.availability,
       });
 
-      set({ currentGoal: response.goal });
-      return response.goal;
+      // Check if the goal was queued for later processing
+      if ('pending' in response && response.pending) {
+        set({ pendingGoalId: response.pendingId });
+        return response as PendingGoalResult;
+      }
+
+      // Goal created immediately
+      const goalResponse = response as CreateGoalResponse;
+      set({ currentGoal: goalResponse.goal });
+      return goalResponse.goal;
     } catch (error: any) {
+      // Check if error response contains pending info (rate limited)
+      if (error.pending && error.pendingId) {
+        set({ pendingGoalId: error.pendingId });
+        return error as PendingGoalResult;
+      }
       set({ error: error.message || 'Failed to create goal' });
       throw error;
     } finally {
       set({ isLoading: false });
     }
+  },
+
+  checkPendingGoal: async (pendingId: string) => {
+    try {
+      const response = await apiClient.get<{
+        status: string;
+        goal?: Goal;
+        error?: string;
+      }>(`/api/goals/pending/${pendingId}`);
+
+      if (response.status === 'completed' && response.goal) {
+        set({ currentGoal: response.goal, pendingGoalId: null });
+      }
+
+      return response;
+    } catch (error: any) {
+      return { status: 'error', error: error.message };
+    }
+  },
+
+  clearPendingGoal: () => {
+    set({ pendingGoalId: null });
   },
 
   deleteGoal: async (id: string) => {

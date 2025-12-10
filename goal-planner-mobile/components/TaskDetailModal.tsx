@@ -22,7 +22,7 @@ import {
 import { COLORS, SHADOWS } from '../constants/theme';
 import { Button } from './ui/Button';
 import type { Task } from '../types';
-import { DAYS } from '../constants/theme';
+import { getDayName, formatDate, formatTime } from '../utils/date';
 
 interface TaskDetailModalProps {
   visible: boolean;
@@ -240,14 +240,6 @@ function extractDomainName(url: string): string {
   }
 }
 
-function formatTime(time: string): string {
-  const [hours, minutes] = time.split(':');
-  const hour = parseInt(hours, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const displayHour = hour % 12 || 12;
-  return `${displayHour}:${minutes} ${ampm}`;
-}
-
 export function TaskDetailModal({
   visible,
   task,
@@ -256,12 +248,8 @@ export function TaskDetailModal({
 }: TaskDetailModalProps) {
   if (!task) return null;
 
-  const date = new Date(task.scheduledDate);
-  const dayName = DAYS[date.getDay()]?.name || '';
-  const formattedDate = date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
+  const dayName = getDayName(task.scheduledDate);
+  const formattedDate = formatDate(task.scheduledDate);
 
   const { mainDescription, resources, tips } = parseTaskDescription(task.description);
   const isCompleted = task.status === 'completed';

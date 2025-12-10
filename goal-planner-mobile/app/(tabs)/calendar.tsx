@@ -7,7 +7,7 @@ import { TaskDetailModal } from '../../components/TaskDetailModal';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { useGoalStore } from '../../store/goal';
 import { useAuthStore } from '../../store/auth';
-import { DAYS } from '../../constants/theme';
+import { formatDateSmart } from '../../utils/date';
 import type { Task } from '../../types';
 
 export default function CalendarScreen() {
@@ -51,26 +51,6 @@ export default function CalendarScreen() {
   }
 
   const sortedDates = Object.keys(groupedTasks).sort();
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (dateString === today.toISOString().split('T')[0]) {
-      return 'Today';
-    }
-    if (dateString === tomorrow.toISOString().split('T')[0]) {
-      return 'Tomorrow';
-    }
-
-    const dayName = DAYS[date.getDay()]?.name || '';
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
-    const day = date.getDate();
-
-    return `${dayName}, ${month} ${day}`;
-  };
 
   const handleSyncCalendar = async (forceResync: boolean = false) => {
     if (!currentGoal || isSyncing) return;
@@ -141,7 +121,7 @@ export default function CalendarScreen() {
           </View>
           <TouchableOpacity
             style={[styles.syncButton, (isSyncing || authLoading) && styles.syncButtonDisabled]}
-            onPress={handleSyncCalendar}
+            onPress={() => handleSyncCalendar()}
             disabled={isSyncing || authLoading || !currentGoal}
           >
             <RefreshCw
@@ -166,7 +146,7 @@ export default function CalendarScreen() {
         ) : (
           sortedDates.map((dateKey) => (
             <View key={dateKey} style={styles.daySection}>
-              <Text style={styles.dateHeader}>{formatDate(dateKey)}</Text>
+              <Text style={styles.dateHeader}>{formatDateSmart(dateKey)}</Text>
               <View style={styles.taskList}>
                 {groupedTasks[dateKey].map((task) => (
                   <TaskItem

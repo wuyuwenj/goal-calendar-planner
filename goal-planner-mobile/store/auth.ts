@@ -4,6 +4,7 @@ import { apiClient } from '../lib/api';
 import type { User } from '../types';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
+import * as Localization from 'expo-localization';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -20,6 +21,8 @@ interface AuthState {
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
   fetchProfile: () => Promise<void>;
+  syncTimezone: () => Promise<void>;
+  updateTimezone: (timezone: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -75,11 +78,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const profile = await apiClient.get<User>('/api/profile');
       set({ user: profile, error: null });
+
+      // Auto-sync phone timezone after fetching profile
+      await get().syncTimezone();
     } catch (error: any) {
       console.error('Failed to fetch profile:', error);
       // Don't show error for network issues on profile fetch
       // The user is still authenticated via Supabase
       set({ error: null });
+    }
+  },
+
+  syncTimezone: async () => {
+    try {
+      const phoneTimezone = Localization.getCalendars()[0]?.timeZone ||
+                           Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const currentUser = get().user;
+
+      // Only update if different from server
+      if (phoneTimezone && currentUser && currentUser.timezone !== phoneTimezone) {
+        console.log(`Syncing timezone: ${currentUser.timezone} -> ${phoneTimezone}`);
+        await get().updateTimezone(phoneTimezone);
+      }
+    } catch (error) {
+      console.error('Failed to sync timezone:', error);
+    }
+  },
+
+  updateTimezone: async (timezone: string) => {
+    try {
+      const updatedProfile = await apiClient.patch<User>('/api/profile', { timezone });
+      set({ user: { ...get().user!, timezone: updatedProfile.timezone } });
+    } catch (error: any) {
+      console.error('Failed to update timezone:', error);
+      throw error;
     }
   },
 

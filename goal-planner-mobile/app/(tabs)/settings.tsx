@@ -1,18 +1,107 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActionSheetIOS, Platform, Switch, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings, User, Calendar, Bell, LogOut, Trash2, ChevronRight } from 'lucide-react-native';
+import { Settings, User, Calendar, Bell, LogOut, Trash2, ChevronRight, Globe } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/auth';
 import { useGoalStore } from '../../store/goal';
 import { Button } from '../../components/ui/Button';
+import { apiClient } from '../../lib/api';
+import * as Localization from 'expo-localization';
+
+const COMMON_TIMEZONES = [
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'Pacific/Honolulu',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Asia/Tokyo',
+  'Asia/Shanghai',
+  'Asia/Singapore',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, session, signOut } = useAuthStore();
+  const { user, session, signOut, updateTimezone, syncTimezone, signInWithCalendarAccess } = useAuthStore();
   const { currentGoal, deleteGoal } = useGoalStore();
+
+  // Google Calendar connection state
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(true);
+
+  // Get device timezone for "Use Phone Timezone" option
+  const phoneTimezone = Localization.getCalendars()[0]?.timeZone ||
+                        Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   // Use session email as fallback when profile hasn't loaded
   const displayEmail = user?.email || session?.user?.email || 'Not signed in';
+
+  // Check calendar connection status on mount
+  useEffect(() => {
+    checkCalendarStatus();
+  }, []);
+
+  const checkCalendarStatus = async () => {
+    try {
+      setCalendarLoading(true);
+      const status = await apiClient.get<{ connected: boolean }>('/api/calendar/status');
+      setCalendarConnected(status.connected);
+    } catch (error) {
+      console.error('Failed to check calendar status:', error);
+      setCalendarConnected(false);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  const handleCalendarToggle = async () => {
+    if (calendarConnected) {
+      // Disconnect
+      Alert.alert(
+        'Disconnect Google Calendar',
+        'This will stop syncing tasks to your Google Calendar. Existing calendar events will not be deleted.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Disconnect',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setCalendarLoading(true);
+                await apiClient.post('/api/calendar/disconnect');
+                setCalendarConnected(false);
+                Alert.alert('Disconnected', 'Google Calendar has been disconnected.');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to disconnect Google Calendar.');
+              } finally {
+                setCalendarLoading(false);
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      // Connect
+      try {
+        setCalendarLoading(true);
+        const success = await signInWithCalendarAccess();
+        if (success) {
+          setCalendarConnected(true);
+          Alert.alert('Connected', 'Google Calendar has been connected. You can now sync your tasks.');
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to connect Google Calendar.');
+      } finally {
+        setCalendarLoading(false);
+      }
+    }
+  };
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -33,7 +122,7 @@ export default function SettingsScreen() {
 
     Alert.alert(
       'Delete Goal',
-      `Are you sure you want to delete "${currentGoal.title}"? This action cannot be undone.`,
+      `Are you sure you want to delete "${currentGoal.title}"? This will also delete all associated Google Calendar events. This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -50,6 +139,65 @@ export default function SettingsScreen() {
         },
       ]
     );
+  };
+
+  const handleTimezoneChange = () => {
+    // Build options list with phone timezone first if not in common list
+    const options = [...COMMON_TIMEZONES];
+    if (phoneTimezone && !options.includes(phoneTimezone)) {
+      options.unshift(phoneTimezone);
+    }
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', `Use Phone (${phoneTimezone})`, ...options],
+          cancelButtonIndex: 0,
+          title: 'Select Timezone',
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 0) return; // Cancel
+          if (buttonIndex === 1) {
+            // Use phone timezone
+            try {
+              await updateTimezone(phoneTimezone);
+              Alert.alert('Success', `Timezone updated to ${phoneTimezone}`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to update timezone');
+            }
+          } else {
+            // Selected from list
+            const selectedTz = options[buttonIndex - 2];
+            try {
+              await updateTimezone(selectedTz);
+              Alert.alert('Success', `Timezone updated to ${selectedTz}`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to update timezone');
+            }
+          }
+        }
+      );
+    } else {
+      // Android: use Alert with buttons (limited options)
+      Alert.alert(
+        'Select Timezone',
+        `Current: ${user?.timezone || 'Not set'}\nPhone: ${phoneTimezone}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Use Phone Timezone',
+            onPress: async () => {
+              try {
+                await updateTimezone(phoneTimezone);
+                Alert.alert('Success', `Timezone updated to ${phoneTimezone}`);
+              } catch (error) {
+                Alert.alert('Error', 'Failed to update timezone');
+              }
+            },
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -84,9 +232,10 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Preferences</Text>
           <View style={styles.card}>
             <SettingsRow
-              icon={<Calendar size={20} color="#525252" />}
+              icon={<Globe size={20} color="#525252" />}
               label="Timezone"
               value={user?.timezone || 'America/New_York'}
+              onPress={handleTimezoneChange}
             />
             <View style={styles.divider} />
             <SettingsRow
@@ -94,6 +243,39 @@ export default function SettingsScreen() {
               label="Check-in Day"
               value={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][user?.checkInDay || 0]}
             />
+          </View>
+        </View>
+
+        {/* Integrations Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Integrations</Text>
+          <View style={styles.card}>
+            <View style={styles.integrationRow}>
+              <View style={styles.integrationLeft}>
+                <Calendar size={20} color="#525252" />
+                <View style={styles.integrationInfo}>
+                  <Text style={styles.integrationLabel}>Google Calendar</Text>
+                  <Text style={styles.integrationStatus}>
+                    {calendarLoading ? 'Checking...' : calendarConnected ? 'Connected' : 'Not connected'}
+                  </Text>
+                </View>
+              </View>
+              {calendarLoading ? (
+                <ActivityIndicator size="small" color="#525252" />
+              ) : (
+                <Switch
+                  value={calendarConnected}
+                  onValueChange={handleCalendarToggle}
+                  trackColor={{ false: '#e5e5e5', true: '#86efac' }}
+                  thumbColor={calendarConnected ? '#22c55e' : '#a3a3a3'}
+                />
+              )}
+            </View>
+            <Text style={styles.integrationHint}>
+              {calendarConnected
+                ? 'Tasks will automatically sync to Google Calendar'
+                : 'Connect to sync your tasks to Google Calendar'}
+            </Text>
           </View>
         </View>
 
@@ -293,5 +475,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#a3a3a3',
     marginBottom: 32,
+  },
+  integrationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  integrationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  integrationInfo: {
+    gap: 2,
+  },
+  integrationLabel: {
+    fontSize: 16,
+    color: '#171717',
+  },
+  integrationStatus: {
+    fontSize: 13,
+    color: '#737373',
+  },
+  integrationHint: {
+    fontSize: 13,
+    color: '#a3a3a3',
+    marginTop: 12,
   },
 });

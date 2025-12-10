@@ -5,6 +5,7 @@ import { taskRoutes } from './routes/tasks';
 import { checkinRoutes } from './routes/checkin';
 import { calendarRoutes } from './routes/calendar';
 import { profileRoutes } from './routes/profile';
+import { startJobProcessor } from './services/jobQueue';
 
 // Load environment variables in development
 if (process.env.NODE_ENV !== 'production') {
@@ -85,6 +86,9 @@ async function main() {
     await fastify.listen({ port, host });
     console.log(`🚀 Server running on http://${host}:${port}`);
     console.log(`📋 API Documentation: http://${host}:${port}/`);
+
+    // Start background job processor for queued goal creation
+    startJobProcessor();
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

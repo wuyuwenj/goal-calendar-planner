@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronRight, Check, Clock, X } from 'lucide-react-native';
+import { ChevronRight, Check, Clock, X, Loader2 } from 'lucide-react-native';
 import { StepIndicator } from '../../components/StepIndicator';
 import { Button } from '../../components/ui/Button';
 import { useGoalStore } from '../../store/goal';
@@ -36,7 +36,7 @@ interface DayAvailability {
 
 export default function AvailabilityScreen() {
   const router = useRouter();
-  const { onboardingData, setOnboardingData, createGoal, isLoading } = useGoalStore();
+  const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
 
   const [selectedDays, setSelectedDays] = useState<Record<number, DayAvailability>>({
     1: { startTime: '17:00', endTime: '19:00' }, // Monday: 5-7 PM
@@ -49,6 +49,74 @@ export default function AvailabilityScreen() {
     dayIndex: number;
     field: 'startTime' | 'endTime';
   } | null>(null);
+
+  // Pending goal state
+  const [pendingState, setPendingState] = useState<{
+    isPending: boolean;
+    pendingId: string | null;
+    pollCount: number;
+    error: string | null;
+  }>({ isPending: false, pendingId: null, pollCount: 0, error: null });
+
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const MAX_POLL_COUNT = 30; // Poll for up to 5 minutes (30 * 10 seconds)
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Start polling for pending goal
+  const startPolling = (pendingId: string) => {
+    setPendingState({ isPending: true, pendingId, pollCount: 0, error: null });
+
+    pollIntervalRef.current = setInterval(async () => {
+      setPendingState((prev) => {
+        if (prev.pollCount >= MAX_POLL_COUNT) {
+          // Stop polling after max attempts
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          return {
+            ...prev,
+            isPending: false,
+            error: 'Goal creation is taking longer than expected. Please check your goals later.',
+          };
+        }
+        return { ...prev, pollCount: prev.pollCount + 1 };
+      });
+
+      try {
+        const result = await checkPendingGoal(pendingId);
+
+        if (result.status === 'completed') {
+          // Goal is ready
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          clearPendingGoal();
+          router.replace('/(tabs)');
+        } else if (result.status === 'failed') {
+          // Goal creation failed
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          setPendingState((prev) => ({
+            ...prev,
+            isPending: false,
+            error: result.error || 'Failed to create goal. Please try again.',
+          }));
+        }
+        // If still pending or processing, continue polling
+      } catch (error) {
+        console.error('Error polling pending goal:', error);
+      }
+    }, 10000); // Poll every 10 seconds
+  };
 
   const toggleDay = (dayIndex: number) => {
     setSelectedDays((prev) => {
@@ -110,16 +178,38 @@ export default function AvailabilityScreen() {
     }));
 
     setOnboardingData({ availability });
+    setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
 
     try {
-      await createGoal({
+      const result = await createGoal({
         ...onboardingData,
         availability,
       } as any);
-      router.replace('/(tabs)');
-    } catch (error) {
+
+      // Check if the goal was queued (pending)
+      if (result && 'pending' in result && result.pending) {
+        // Start polling for the pending goal
+        startPolling(result.pendingId);
+      } else {
+        // Goal created immediately
+        router.replace('/(tabs)');
+      }
+    } catch (error: any) {
       console.error('Failed to create goal:', error);
+      // Check if error has pending info (from rate limiting)
+      if (error.pending && error.pendingId) {
+        startPolling(error.pendingId);
+      } else {
+        setPendingState((prev) => ({
+          ...prev,
+          error: error.message || 'Failed to create goal. Please try again.',
+        }));
+      }
     }
+  };
+
+  const handleRetry = () => {
+    setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
   };
 
   const canProceed = Object.keys(selectedDays).length > 0;
@@ -264,6 +354,43 @@ export default function AvailabilityScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Processing/Pending Modal */}
+      <Modal
+        visible={pendingState.isPending || !!pendingState.error}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.pendingOverlay}>
+          <View style={styles.pendingContent}>
+            {pendingState.isPending ? (
+              <>
+                <ActivityIndicator size="large" color="#171717" />
+                <Text style={styles.pendingTitle}>Creating your plan...</Text>
+                <Text style={styles.pendingSubtitle}>
+                  Our servers are busy. Your personalized plan is being generated and will be ready soon.
+                </Text>
+                <Text style={styles.pendingHint}>
+                  This may take a few minutes. Please don't close the app.
+                </Text>
+              </>
+            ) : pendingState.error ? (
+              <>
+                <View style={styles.errorIcon}>
+                  <X size={32} color="#dc2626" />
+                </View>
+                <Text style={styles.pendingTitle}>Something went wrong</Text>
+                <Text style={styles.pendingSubtitle}>{pendingState.error}</Text>
+                <View style={styles.retryButton}>
+                  <Button onPress={handleRetry}>
+                    Try Again
+                  </Button>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -415,5 +542,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#171717',
     textAlign: 'center',
+  },
+  pendingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  pendingContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+  },
+  pendingTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#171717',
+    marginTop: 20,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  pendingSubtitle: {
+    fontSize: 15,
+    color: '#525252',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  pendingHint: {
+    fontSize: 13,
+    color: '#737373',
+    textAlign: 'center',
+    marginTop: 16,
+    fontStyle: 'italic',
+  },
+  errorIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButton: {
+    marginTop: 24,
+    width: '100%',
   },
 });

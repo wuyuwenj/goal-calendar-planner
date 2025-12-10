@@ -4,7 +4,7 @@ import { Calendar, Clock, ChevronRight } from 'lucide-react-native';
 import { Checkbox } from './ui/Checkbox';
 import { COLORS, SHADOWS } from '../constants/theme';
 import type { Task } from '../types';
-import { DAYS } from '../constants/theme';
+import { getDayName } from '../utils/date';
 
 interface TaskItemProps {
   task: Task;
@@ -17,8 +17,7 @@ export function TaskItem({ task, onToggle, onPress, showDay = true }: TaskItemPr
   const isCompleted = task.status === 'completed';
   const isMissed = task.status === 'missed';
 
-  const date = new Date(task.scheduledDate);
-  const dayName = DAYS[date.getDay()]?.name || '';
+  const dayName = getDayName(task.scheduledDate);
 
   const getBackgroundColor = () => {
     if (isCompleted) return COLORS.primary.light;

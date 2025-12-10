@@ -88,3 +88,17 @@ model CheckIn {
 
   @@map("check_ins")
 }
+
+model PendingGoal {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  requestData String   @map("request_data") // JSON string of CreateGoalInput
+  status      String   @default("pending") // pending, processing, completed, failed
+  error       String?  // Error message if failed
+  retryCount  Int      @default(0) @map("retry_count")
+  goalId      String?  @map("goal_id") // Set when goal is successfully created
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("pending_goals")
+}

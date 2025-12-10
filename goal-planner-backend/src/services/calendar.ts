@@ -74,12 +74,26 @@ export async function syncTasksToCalendar(
     // Build ISO datetime strings directly (no Date manipulation to avoid timezone issues)
     const startTimeStr = `${dateStr}T${task.scheduledTime}:00`;
 
-    // Calculate end time
+    // Calculate end time, handling overflow past midnight
     const [hours, minutes] = task.scheduledTime.split(':').map(Number);
     const totalMinutes = hours * 60 + minutes + task.durationMinutes;
-    const endHours = Math.floor(totalMinutes / 60) % 24;
+    const endHours = Math.floor(totalMinutes / 60);
     const endMins = totalMinutes % 60;
-    const endTimeStr = `${dateStr}T${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}:00`;
+
+    let endDateStr = dateStr;
+    let endHoursFinal = endHours;
+
+    // If end time goes past midnight, adjust the date
+    if (endHours >= 24) {
+      endHoursFinal = endHours % 24;
+      // Add days to the date
+      const daysToAdd = Math.floor(endHours / 24);
+      const endDate = new Date(task.scheduledDate);
+      endDate.setUTCDate(endDate.getUTCDate() + daysToAdd);
+      endDateStr = formatInTimeZone(endDate, timezone, 'yyyy-MM-dd');
+    }
+
+    const endTimeStr = `${endDateStr}T${String(endHoursFinal).padStart(2, '0')}:${String(endMins).padStart(2, '0')}:00`;
 
     console.log(`Calendar event: ${task.title} | ${startTimeStr} to ${endTimeStr} (${timezone})`);
 
