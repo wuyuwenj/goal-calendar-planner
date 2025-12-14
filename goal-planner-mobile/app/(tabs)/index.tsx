@@ -22,6 +22,7 @@ export default function Dashboard() {
     tasks,
     progress,
     isLoading,
+    isInitialLoad,
     fetchGoals,
     fetchGoalById,
     toggleTask,
@@ -39,24 +40,25 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, authLoading]);
 
-  const loadData = async () => {
-    const goals = await fetchGoals();
+  const loadData = async (background = false) => {
+    const goals = await fetchGoals({ background });
     if (goals.length === 0) {
       router.replace('/onboarding/welcome' as any);
       return;
     }
     if (goals[0]) {
-      await fetchGoalById(goals[0].id);
+      await fetchGoalById(goals[0].id, { background });
     }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    await loadData(true); // Background refresh - don't show spinner
     setRefreshing(false);
   }, []);
 
-  if (authLoading || isLoading) {
+  // Only show full-screen spinner on initial load when we have no data
+  if (authLoading || (isLoading && isInitialLoad && !currentGoal)) {
     return <LoadingSpinner message="Loading your goals..." />;
   }
 
