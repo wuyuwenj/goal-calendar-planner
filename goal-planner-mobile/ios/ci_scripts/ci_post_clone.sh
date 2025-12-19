@@ -5,6 +5,9 @@
 
 set -e
 
+echo "🍺 Installing Node.js via Homebrew..."
+brew install node
+
 echo "📦 Installing Node.js dependencies..."
 cd "$CI_PRIMARY_REPOSITORY_PATH/goal-planner-mobile"
 npm install
