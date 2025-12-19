@@ -36,19 +36,15 @@ export async function authMiddleware(
     return reply.status(401).send({ error: 'Invalid token' });
   }
 
-  // Get or create profile
-  let profile = await prisma.profile.findUnique({
+  // Get or create profile (using upsert to avoid race conditions)
+  const profile = await prisma.profile.upsert({
     where: { supabaseUserId: user.id },
+    update: {}, // No updates needed if profile exists
+    create: {
+      supabaseUserId: user.id,
+      email: user.email!,
+    },
   });
-
-  if (!profile) {
-    profile = await prisma.profile.create({
-      data: {
-        supabaseUserId: user.id,
-        email: user.email!,
-      },
-    });
-  }
 
   (request as AuthenticatedRequest).user = {
     id: user.id,

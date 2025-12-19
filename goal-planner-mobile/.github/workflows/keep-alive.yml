@@ -15,7 +15,7 @@ jobs:
         run: |
           echo "Pinging backend at $(date)"
 
-          API_URL="https://goal-calendar-planner.onrender.com"
+          API_URL="https://goal-calendar-planner.onrender.com/health"
 
           # Make the API call
           response=$(curl -s -w "\n%{http_code}" -X GET "$API_URL" \

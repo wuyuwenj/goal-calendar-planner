@@ -90,8 +90,8 @@ export default function AvailabilityScreen() {
   const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
 
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 3, 5]); // Mon, Wed, Fri default
-  const [startTime, setStartTime] = useState('17:00');
-  const [endTime, setEndTime] = useState('19:00');
+  const [startTime, setStartTime] = useState('20:00');
+  const [endTime, setEndTime] = useState('21:00');
 
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<'startTime' | 'endTime' | null>(null);
@@ -263,7 +263,7 @@ export default function AvailabilityScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={6} currentStep={5} />
+          <StepIndicator totalSteps={7} currentStep={6} />
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
             <Text style={styles.title}>When can you practice?</Text>

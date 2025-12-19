@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {
   X,
+  XCircle,
   Clock,
   Calendar,
   ExternalLink,
@@ -29,6 +30,7 @@ interface TaskDetailModalProps {
   task: Task | null;
   onClose: () => void;
   onToggleComplete: () => void;
+  onMarkMissed: () => void;
 }
 
 interface ParsedResource {
@@ -58,6 +60,21 @@ function parseTaskDescription(description: string | undefined): {
   const cleanUrl = (url: string): string => {
     return url.replace(/[).,;:!?\]}>'"]+$/, '');
   };
+
+  // Extract Google search links (priority - these are our generated links)
+  const googleSearchRegex = /https?:\/\/(?:www\.)?google\.com\/search\?q=([^\s).,;:!?\]}>'"]+)/gi;
+  const googleMatches = description.matchAll(googleSearchRegex);
+  for (const match of googleMatches) {
+    if (match[0] && match[1]) {
+      const searchQuery = decodeURIComponent(match[1].replace(/\+/g, ' '));
+      const isYouTube = searchQuery.toLowerCase().includes('youtube');
+      resources.push({
+        type: isYouTube ? 'youtube' : 'link',
+        title: searchQuery,
+        url: cleanUrl(match[0]),
+      });
+    }
+  }
 
   // Extract "search for X" or "watch X" patterns and create real search links
   const searchPatterns = [
@@ -221,11 +238,13 @@ function parseTaskDescription(description: string | undefined): {
 
   // Clean main description (remove URLs for display)
   mainDescription = description
+    .replace(googleSearchRegex, '')
     .replace(youtubeRegex, '')
     .replace(linkRegex, '')
     .split('\n')
     .filter((line) => !line.trim().startsWith('-') && !line.trim().startsWith('*'))
     .join('\n')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 
   return { mainDescription, resources, tips };
@@ -245,15 +264,30 @@ export function TaskDetailModal({
   task,
   onClose,
   onToggleComplete,
+  onMarkMissed,
 }: TaskDetailModalProps) {
   if (!task) return null;
 
   const dayName = getDayName(task.scheduledDate);
   const formattedDate = formatDate(task.scheduledDate);
 
-  const { mainDescription, resources, tips } = parseTaskDescription(task.description);
+  const { mainDescription, resources: parsedResources, tips } = parseTaskDescription(task.description);
   const isCompleted = task.status === 'completed';
   const isMissed = task.status === 'missed';
+
+  // Debug: log task data to see if resourceUrl is present
+  console.log('TaskDetailModal - task:', task.id, 'resourceUrl:', task.resourceUrl);
+
+  // If task has a dedicated resourceUrl, use that instead of parsed resources
+  const resources: ParsedResource[] = task.resourceUrl
+    ? [{
+        type: task.resourceUrl.toLowerCase().includes('youtube') ? 'youtube' : 'link',
+        title: decodeURIComponent(
+          task.resourceUrl.match(/[?&]q=([^&]+)/)?.[1]?.replace(/\+/g, ' ') || 'View Resource'
+        ),
+        url: task.resourceUrl,
+      }]
+    : parsedResources;
 
   const handleOpenLink = async (url: string) => {
     try {
@@ -394,24 +428,49 @@ export function TaskDetailModal({
             </View>
           </ScrollView>
 
-          {/* Action Button */}
+          {/* Action Buttons */}
           <View style={styles.footer}>
-            {!isMissed && (
+            {!isMissed && !isCompleted && (
+              <View style={styles.buttonRow}>
+                <Button
+                  onPress={() => {
+                    onToggleComplete();
+                    onClose();
+                  }}
+                  variant="primary"
+                  fullWidth
+                >
+                  Mark as Complete
+                </Button>
+                <TouchableOpacity
+                  onPress={() => {
+                    onMarkMissed();
+                    onClose();
+                  }}
+                  style={styles.missedButton}
+                >
+                  <XCircle size={18} color={COLORS.system.error} />
+                  <Text style={styles.missedButtonText}>Mark as Missed</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {isCompleted && !isMissed && (
               <Button
                 onPress={() => {
                   onToggleComplete();
                   onClose();
                 }}
-                variant={isCompleted ? 'secondary' : 'primary'}
+                variant="secondary"
                 fullWidth
               >
-                {isCompleted ? 'Mark as Incomplete' : 'Mark as Complete'}
+                Mark as Incomplete
               </Button>
             )}
             {isMissed && (
               <View style={styles.missedMessage}>
+                <XCircle size={20} color={COLORS.system.error} />
                 <Text style={styles.missedText}>
-                  This task was missed. You can review it during your weekly check-in.
+                  This task was missed. You can still review it during your weekly check-in.
                 </Text>
               </View>
             )}
@@ -586,14 +645,36 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.secondary.sand,
   },
+  buttonRow: {
+    gap: 12,
+  },
+  missedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.red[200],
+    backgroundColor: COLORS.system.errorLight,
+  },
+  missedButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.system.error,
+  },
   missedMessage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     padding: 16,
     backgroundColor: COLORS.system.errorLight,
     borderRadius: 12,
   },
   missedText: {
+    flex: 1,
     fontSize: 14,
     color: COLORS.system.error,
-    textAlign: 'center',
   },
 });

@@ -48,13 +48,15 @@ interface GoalState {
   fetchUpcomingTasks: (limit?: number) => Promise<Task[]>;
   toggleTask: (taskId: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
+  markTaskMissed: (taskId: string) => Promise<void>;
 
   // Check-in actions
   submitCheckIn: (
     goalId: string,
     weekNumber: number,
     taskResults: Array<{ taskId: string; status: string }>,
-    notes?: string
+    notes?: string,
+    adjustment?: 'decrease' | 'maintain' | 'increase'
   ) => Promise<void>;
 
   // Calendar sync
@@ -312,7 +314,32 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     }
   },
 
-  submitCheckIn: async (goalId, weekNumber, taskResults, notes) => {
+  markTaskMissed: async (taskId: string) => {
+    const task = get().tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const previousStatus = task.status;
+
+    // Optimistic update
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId ? { ...t, status: 'missed' } : t
+      ),
+    }));
+
+    try {
+      await apiClient.patch(`/api/tasks/${taskId}`, { status: 'missed' });
+    } catch (error: any) {
+      // Revert on error
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.id === taskId ? { ...t, status: previousStatus } : t
+        ),
+      }));
+    }
+  },
+
+  submitCheckIn: async (goalId, weekNumber, taskResults, notes, adjustment) => {
     set({ isLoading: true, error: null });
     try {
       const response = await apiClient.post<{
@@ -324,6 +351,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         weekNumber,
         taskResults,
         notes,
+        adjustment,
       });
 
       // Refresh goal data

@@ -60,6 +60,7 @@ model Task {
   goalId          String   @map("goal_id")
   title           String
   description     String?
+  resourceUrl     String?  @map("resource_url") // Google search link for videos/articles
   scheduledDate   DateTime @map("scheduled_date")
   scheduledTime   String   @map("scheduled_time") // "14:00"
   durationMinutes Int      @map("duration_minutes")

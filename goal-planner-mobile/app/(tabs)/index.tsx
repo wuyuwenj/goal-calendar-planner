@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sprout, ChevronRight, Flame, TrendingUp } from 'lucide-react-native';
+import { Sprout, ChevronRight, Flame, TrendingUp, ClipboardList, PartyPopper } from 'lucide-react-native';
+import { TrellisIcon } from '../../components/TrellisIcon';
 import { GoalCard } from '../../components/GoalCard';
 import { TaskItem } from '../../components/TaskItem';
 import { TaskDetailModal } from '../../components/TaskDetailModal';
@@ -26,6 +27,7 @@ export default function Dashboard() {
     fetchGoals,
     fetchGoalById,
     toggleTask,
+    markTaskMissed,
   } = useGoalStore();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -91,8 +93,12 @@ export default function Dashboard() {
   const completedCount = currentWeekTasks.filter(
     (t) => t.status === 'completed'
   ).length;
+  const missedCount = currentWeekTasks.filter(
+    (t) => t.status === 'missed'
+  ).length;
   const totalCount = currentWeekTasks.length;
-  const isWeekComplete = completedCount === totalCount && totalCount > 0;
+  const addressedCount = completedCount + missedCount;
+  const isWeekComplete = addressedCount === totalCount && totalCount > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -110,7 +116,7 @@ export default function Dashboard() {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.logoContainer}>
-              <Sprout size={20} color={COLORS.primary.forest} />
+              <TrellisIcon size={28} color={COLORS.primary.forest} />
             </View>
             <Text style={styles.headerTitle}>Trellis</Text>
           </View>
@@ -127,13 +133,23 @@ export default function Dashboard() {
 
         {/* Week Complete Banner */}
         {isWeekComplete && (
-          <Card variant="success" style={styles.section}>
+          <Card variant={missedCount > 0 ? 'default' : 'success'} style={styles.section}>
             <View style={styles.successContent}>
-              <Text style={styles.successEmoji}>🎉</Text>
-              <View>
-                <Text style={styles.successTitle}>Week complete!</Text>
+              <View style={styles.successIconContainer}>
+                {missedCount > 0 ? (
+                  <ClipboardList size={24} color={COLORS.secondary.warm} />
+                ) : (
+                  <PartyPopper size={24} color={COLORS.primary.forest} />
+                )}
+              </View>
+              <View style={styles.successTextContainer}>
+                <Text style={styles.successTitle}>
+                  {missedCount > 0 ? 'Ready for check-in' : 'Week complete!'}
+                </Text>
                 <Text style={styles.successText}>
-                  Great work this week. Ready for your check-in?
+                  {missedCount > 0
+                    ? `${completedCount} done, ${missedCount} missed. Time to review your week.`
+                    : 'Great work this week. Ready for your check-in?'}
                 </Text>
               </View>
             </View>
@@ -213,6 +229,11 @@ export default function Dashboard() {
             toggleTask(selectedTask.id);
           }
         }}
+        onMarkMissed={() => {
+          if (selectedTask) {
+            markTaskMissed(selectedTask.id);
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -290,8 +311,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  successEmoji: {
-    fontSize: 32,
+  successIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary.light,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successTextContainer: {
+    flex: 1,
   },
   successTitle: {
     fontSize: 16,

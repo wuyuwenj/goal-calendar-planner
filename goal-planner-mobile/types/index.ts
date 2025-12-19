@@ -20,6 +20,7 @@ export interface Task {
   goalId: string;
   title: string;
   description?: string;
+  resourceUrl?: string;
   scheduledDate: string;
   scheduledTime: string;
   durationMinutes: number;
@@ -70,6 +71,7 @@ export interface OnboardingData {
 export interface GeneratedTask {
   title: string;
   description: string;
+  resourceUrl?: string;
   dayOfWeek: number;
   time: string;
   durationMinutes: number;

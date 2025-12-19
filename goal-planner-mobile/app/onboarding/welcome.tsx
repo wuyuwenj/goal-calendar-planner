@@ -1,7 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sprout, Check } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
+import { TrellisIcon } from '../../components/TrellisIcon';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -36,17 +37,13 @@ export default function WelcomeScreen() {
     router.push('./intent' as any);
   };
 
-  const handleSkip = () => {
-    router.replace('/(tabs)');
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         {/* Logo */}
         <Animated.View style={[styles.logoContainer, logoAnimatedStyle]}>
           <View style={styles.logoCircle}>
-            <Sprout size={48} color={COLORS.primary.forest} strokeWidth={1.5} />
+            <TrellisIcon size={72} color={COLORS.primary.forest} />
           </View>
         </Animated.View>
 
@@ -93,12 +90,6 @@ export default function WelcomeScreen() {
       >
         <Button onPress={handleGetStarted} size="lg">
           Let's Get Started
-        </Button>
-        <Button
-          onPress={handleSkip}
-          variant="ghost"
-        >
-          Already have goals? Skip
         </Button>
       </Animated.View>
     </SafeAreaView>

@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Sprout, Leaf, TreeDeciduous, Trophy } from 'lucide-react-native';
 import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StepIndicator } from '../../components/StepIndicator';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useGoalStore } from '../../store/goal';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
@@ -16,7 +15,6 @@ interface LevelOption {
   label: string;
   description: string;
   icon: React.ReactNode;
-  placeholder: string;
 }
 
 const LEVEL_OPTIONS: LevelOption[] = [
@@ -25,28 +23,24 @@ const LEVEL_OPTIONS: LevelOption[] = [
     label: 'Complete Beginner',
     description: 'Never tried this before',
     icon: <Sprout size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I have never done this before',
   },
   {
     value: 'some_experience',
     label: 'Some Experience',
     description: 'Tried a few times',
     icon: <Leaf size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I have tried a few times but never stuck with it',
   },
   {
     value: 'intermediate',
     label: 'Intermediate',
     description: 'Comfortable with basics',
     icon: <TreeDeciduous size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I do this regularly and want to improve',
   },
   {
     value: 'advanced',
     label: 'Advanced',
     description: 'Looking to master',
     icon: <Trophy size={24} color={COLORS.primary.forest} />,
-    placeholder: 'e.g., I have significant experience and want to reach expert level',
   },
 ];
 
@@ -110,9 +104,7 @@ export default function LevelScreen() {
   const [level, setLevel] = useState<ExperienceLevel | null>(
     onboardingData.currentLevel || null
   );
-  const [details, setDetails] = useState(onboardingData.levelDetails || '');
 
-  const selectedOption = LEVEL_OPTIONS.find((l) => l.value === level);
   const goalTitle = onboardingData.title || 'this goal';
 
   const handleBack = () => {
@@ -121,8 +113,13 @@ export default function LevelScreen() {
 
   const handleNext = () => {
     if (level) {
-      setOnboardingData({ currentLevel: level, levelDetails: details });
-      router.push('/onboarding/timeline');
+      setOnboardingData({ currentLevel: level });
+      // Skip level-details for beginners, go straight to timeline
+      if (level === 'beginner') {
+        router.push('/onboarding/timeline');
+      } else {
+        router.push('/onboarding/level-details');
+      }
     }
   };
 
@@ -134,7 +131,7 @@ export default function LevelScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <StepIndicator totalSteps={6} currentStep={3} />
+          <StepIndicator totalSteps={7} currentStep={3} />
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
             <Text style={styles.title}>
@@ -157,19 +154,6 @@ export default function LevelScreen() {
               />
             ))}
           </View>
-
-          {selectedOption && (
-            <Animated.View entering={FadeInUp.duration(300)} style={styles.detailsSection}>
-              <Input
-                label="Tell us more about your experience (optional)"
-                value={details}
-                onChangeText={setDetails}
-                placeholder={selectedOption.placeholder}
-                multiline
-                numberOfLines={3}
-              />
-            </Animated.View>
-          )}
         </View>
       </ScrollView>
 
@@ -270,9 +254,6 @@ const styles = StyleSheet.create({
   levelDescription: {
     ...TYPOGRAPHY.bodySmall,
     color: COLORS.secondary.warm,
-  },
-  detailsSection: {
-    marginTop: SPACING.lg,
   },
   footer: {
     flexDirection: 'row',

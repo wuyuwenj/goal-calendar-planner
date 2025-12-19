@@ -128,7 +128,7 @@ export default function IntentScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={6} currentStep={1} />
+          <StepIndicator totalSteps={7} currentStep={1} />
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
             <Text style={styles.title}>What brings you to Trellis?</Text>

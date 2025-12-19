@@ -48,10 +48,11 @@ export default function CheckInTasksScreen() {
     }));
 
     router.push({
-      pathname: '/checkin/notes',
+      pathname: '/checkin/adjust',
       params: {
         taskResults: JSON.stringify(taskResults),
         weekNumber: currentWeek.toString(),
+        completionRate: completionRate.toString(),
       },
     });
   };
@@ -76,7 +77,7 @@ export default function CheckInTasksScreen() {
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={2} currentStep={1} />
+          <StepIndicator totalSteps={3} currentStep={1} />
 
           <View style={styles.titleSection}>
             <Text style={styles.title}>Week {currentWeek} review</Text>

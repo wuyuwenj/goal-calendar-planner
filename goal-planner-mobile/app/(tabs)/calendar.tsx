@@ -11,7 +11,7 @@ import { formatDateSmart } from '../../utils/date';
 import type { Task } from '../../types';
 
 export default function CalendarScreen() {
-  const { tasks, currentGoal, fetchGoalById, toggleTask, isLoading, isInitialLoad, syncToCalendar } =
+  const { tasks, currentGoal, fetchGoalById, toggleTask, markTaskMissed, isLoading, isInitialLoad, syncToCalendar } =
     useGoalStore();
   const { signInWithCalendarAccess, isLoading: authLoading } = useAuthStore();
   const [groupedTasks, setGroupedTasks] = useState<Record<string, Task[]>>({});
@@ -173,6 +173,11 @@ export default function CalendarScreen() {
         onToggleComplete={() => {
           if (selectedTask) {
             toggleTask(selectedTask.id);
+          }
+        }}
+        onMarkMissed={() => {
+          if (selectedTask) {
+            markTaskMissed(selectedTask.id);
           }
         }}
       />

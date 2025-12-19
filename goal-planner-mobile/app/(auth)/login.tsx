@@ -1,7 +1,9 @@
+import React, { ReactNode } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sprout } from 'lucide-react-native';
+import { Sprout, Sparkles, Calendar, TreeDeciduous } from 'lucide-react-native';
+import { TrellisIcon } from '../../components/TrellisIcon';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../store/auth';
@@ -30,33 +32,33 @@ export default function LoginScreen() {
         {/* Logo Section */}
         <View style={styles.logoSection}>
           <View style={styles.logoContainer}>
-            <Sprout size={48} color={COLORS.primary.forest} />
+            <TrellisIcon size={72} color={COLORS.primary.forest} />
           </View>
           <Text style={styles.title}>Trellis</Text>
           <Text style={styles.subtitle}>
-            AI-powered weekly schedules to help you achieve your goals
+            Turn your dreams into achievable daily actions
           </Text>
         </View>
 
         {/* Features */}
         <View style={styles.features}>
           <FeatureItem
-            emoji="🌱"
+            icon={<Sprout size={24} color={COLORS.primary.forest} />}
             title="Plant your goals"
             description="Define what you want to achieve"
           />
           <FeatureItem
-            emoji="🤖"
+            icon={<Sparkles size={24} color={COLORS.primary.forest} />}
             title="AI-generated plans"
             description="Get personalized weekly schedules"
           />
           <FeatureItem
-            emoji="📅"
+            icon={<Calendar size={24} color={COLORS.primary.forest} />}
             title="Calendar sync"
             description="Integrate with Google Calendar"
           />
           <FeatureItem
-            emoji="🌳"
+            icon={<TreeDeciduous size={24} color={COLORS.primary.forest} />}
             title="Watch them grow"
             description="Track progress with weekly check-ins"
           />
@@ -82,17 +84,17 @@ export default function LoginScreen() {
 }
 
 function FeatureItem({
-  emoji,
+  icon,
   title,
   description,
 }: {
-  emoji: string;
+  icon: ReactNode;
   title: string;
   description: string;
 }) {
   return (
     <View style={styles.featureItem}>
-      <Text style={styles.featureEmoji}>{emoji}</Text>
+      <View style={styles.featureIconContainer}>{icon}</View>
       <View style={styles.featureText}>
         <Text style={styles.featureTitle}>{title}</Text>
         <Text style={styles.featureDescription}>{description}</Text>
@@ -147,9 +149,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 14,
   },
-  featureEmoji: {
-    fontSize: 28,
-    width: 36,
+  featureIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary.light,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   featureText: {
     flex: 1,

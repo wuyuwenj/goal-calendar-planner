@@ -140,7 +140,7 @@ export default function TimelineScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={6} currentStep={4} />
+          <StepIndicator totalSteps={7} currentStep={5} />
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
             <Text style={styles.title}>How long do you want to work on this?</Text>

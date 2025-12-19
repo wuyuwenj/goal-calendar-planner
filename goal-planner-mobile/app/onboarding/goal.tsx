@@ -12,11 +12,11 @@ import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
 import type { GoalCategory } from '../../types';
 
 const SUGGESTIONS: Record<GoalCategory, string[]> = {
-  learning: ['Learn Spanish', 'Learn to code in Python', 'Play guitar', 'Learn photography'],
-  health: ['Run a 5K', 'Lose 10 pounds', 'Build muscle', 'Meditate daily'],
-  career: ['Get promoted', 'Learn data science', 'Build a portfolio', 'Network more'],
-  creative: ['Write a novel', 'Learn to paint', 'Record an album', 'Start a blog'],
-  other: ['Read 12 books', 'Save $5000', 'Learn to cook', 'Wake up at 6 AM'],
+  learning: ['Learn conversational Spanish', 'Learn Python programming', 'Play guitar songs', 'Learn portrait photography'],
+  health: ['Run a 5K race', 'Lose 10 pounds through exercise', 'Build muscle with weightlifting', 'Practice daily meditation'],
+  career: ['Get a promotion at work', 'Learn data science for analytics', 'Build a professional portfolio', 'Attend more industry networking events'],
+  creative: ['Write a fiction novel', 'Learn watercolor painting', 'Record an original music album', 'Start a personal blog'],
+  other: ['Read 12 books this year', 'Save $5000 for emergency fund', 'Learn to cook healthy meals', 'Wake up at 6 AM daily'],
 };
 
 function SuggestionChip({
@@ -78,7 +78,7 @@ export default function GoalInputScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <StepIndicator totalSteps={6} currentStep={2} />
+          <StepIndicator totalSteps={7} currentStep={2} />
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
             <Text style={styles.title}>What's your goal?</Text>

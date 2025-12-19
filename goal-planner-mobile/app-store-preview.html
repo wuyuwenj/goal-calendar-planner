@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trellis - App Store Previews</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --forest: #2D5A3D;
+      --sage: #6B8E6B;
+      --mint: #A8D5A2;
+      --light: #E8F5E8;
+      --bark: #5D4037;
+      --warm: #8D6E63;
+      --sand: #D7CCC8;
+      --cream: #FAF8F5;
+      --white: #FFFFFF;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #1a1a1a;
+      padding: 40px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      color: white;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 32px;
+    }
+
+    .subtitle {
+      color: #888;
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 14px;
+    }
+
+    .previews-container {
+      display: flex;
+      gap: 30px;
+      overflow-x: auto;
+      padding: 20px 0;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .preview {
+      width: 300px;
+      height: 650px;
+      border-radius: 40px;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    }
+
+    /* Preview 1: Hero */
+    .preview-1 {
+      background: linear-gradient(180deg, var(--forest) 0%, #1E3D29 100%);
+    }
+
+    .preview-1 .content {
+      padding: 60px 30px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .preview-1 .logo {
+      width: 80px;
+      height: 80px;
+      background: var(--white);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .preview-1 .logo svg {
+      width: 50px;
+      height: 50px;
+    }
+
+    .preview-1 .app-name {
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--white);
+      margin-bottom: 15px;
+      letter-spacing: -1px;
+    }
+
+    .preview-1 .tagline {
+      font-size: 20px;
+      color: var(--mint);
+      font-weight: 500;
+      line-height: 1.4;
+      max-width: 240px;
+    }
+
+    .preview-1 .features {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+
+    .preview-1 .feature {
+      background: rgba(255,255,255,0.1);
+      padding: 14px 20px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .preview-1 .feature-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--mint);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-1 .feature-text {
+      color: var(--white);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* Preview 2: AI Planning */
+    .preview-2 {
+      background: var(--cream);
+    }
+
+    .preview-2 .header {
+      background: var(--forest);
+      padding: 50px 25px 30px;
+      text-align: center;
+    }
+
+    .preview-2 .header-title {
+      color: var(--white);
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .preview-2 .header-subtitle {
+      color: var(--mint);
+      font-size: 14px;
+    }
+
+    .preview-2 .content {
+      padding: 25px;
+    }
+
+    .preview-2 .ai-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(45,90,61,0.1);
+      margin-bottom: 15px;
+    }
+
+    .preview-2 .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--light);
+      padding: 6px 12px;
+      border-radius: 20px;
+      margin-bottom: 15px;
+    }
+
+    .preview-2 .ai-badge span {
+      font-size: 12px;
+      color: var(--forest);
+      font-weight: 600;
+    }
+
+    .preview-2 .goal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--bark);
+      margin-bottom: 12px;
+    }
+
+    .preview-2 .week-label {
+      font-size: 12px;
+      color: var(--sage);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .preview-2 .task {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--sand);
+    }
+
+    .preview-2 .task:last-child {
+      border-bottom: none;
+    }
+
+    .preview-2 .task-check {
+      width: 22px;
+      height: 22px;
+      border: 2px solid var(--sage);
+      border-radius: 6px;
+    }
+
+    .preview-2 .task-text {
+      font-size: 14px;
+      color: var(--bark);
+      flex: 1;
+    }
+
+    .preview-2 .task-time {
+      font-size: 12px;
+      color: var(--warm);
+    }
+
+    /* Preview 3: Daily Tasks */
+    .preview-3 {
+      background: var(--cream);
+    }
+
+    .preview-3 .header {
+      background: var(--forest);
+      padding: 50px 25px 30px;
+      text-align: center;
+    }
+
+    .preview-3 .header-title {
+      color: var(--white);
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .preview-3 .header-subtitle {
+      color: var(--mint);
+      font-size: 14px;
+    }
+
+    .preview-3 .content {
+      padding: 25px;
+    }
+
+    .preview-3 .date-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .preview-3 .date-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--bark);
+    }
+
+    .preview-3 .progress-badge {
+      background: var(--light);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--forest);
+      font-weight: 600;
+    }
+
+    .preview-3 .task-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 10px rgba(45,90,61,0.08);
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+
+    .preview-3 .task-card.completed {
+      opacity: 0.7;
+    }
+
+    .preview-3 .check-circle {
+      width: 28px;
+      height: 28px;
+      border: 2px solid var(--sage);
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-3 .check-circle.done {
+      background: var(--forest);
+      border-color: var(--forest);
+    }
+
+    .preview-3 .task-info {
+      flex: 1;
+    }
+
+    .preview-3 .task-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--bark);
+      margin-bottom: 4px;
+    }
+
+    .preview-3 .task-meta {
+      font-size: 13px;
+      color: var(--warm);
+    }
+
+    /* Preview 4: Progress */
+    .preview-4 {
+      background: var(--cream);
+    }
+
+    .preview-4 .header {
+      background: var(--forest);
+      padding: 50px 25px 30px;
+      text-align: center;
+    }
+
+    .preview-4 .header-title {
+      color: var(--white);
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .preview-4 .header-subtitle {
+      color: var(--mint);
+      font-size: 14px;
+    }
+
+    .preview-4 .content {
+      padding: 25px;
+    }
+
+    .preview-4 .progress-card {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 25px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(45,90,61,0.1);
+      margin-bottom: 20px;
+    }
+
+    .preview-4 .progress-ring {
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+
+    .preview-4 .progress-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .preview-4 .progress-ring circle {
+      fill: none;
+      stroke-width: 12;
+    }
+
+    .preview-4 .progress-ring .bg {
+      stroke: var(--light);
+    }
+
+    .preview-4 .progress-ring .progress {
+      stroke: var(--forest);
+      stroke-linecap: round;
+      stroke-dasharray: 377;
+      stroke-dashoffset: 113;
+    }
+
+    .preview-4 .progress-percent {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--forest);
+    }
+
+    .preview-4 .stats-row {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 15px;
+    }
+
+    .preview-4 .stat {
+      text-align: center;
+    }
+
+    .preview-4 .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--forest);
+    }
+
+    .preview-4 .stat-label {
+      font-size: 12px;
+      color: var(--warm);
+    }
+
+    .preview-4 .week-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 2px 10px rgba(45,90,61,0.08);
+    }
+
+    .preview-4 .week-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .preview-4 .week-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--bark);
+    }
+
+    .preview-4 .week-badge {
+      background: var(--mint);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      color: var(--forest);
+      font-weight: 600;
+    }
+
+    .preview-4 .week-bar {
+      height: 8px;
+      background: var(--light);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .preview-4 .week-bar-fill {
+      height: 100%;
+      background: var(--forest);
+      border-radius: 4px;
+      width: 70%;
+    }
+
+    /* Preview 5: Calendar Sync */
+    .preview-5 {
+      background: var(--cream);
+    }
+
+    .preview-5 .header {
+      background: var(--forest);
+      padding: 50px 25px 30px;
+      text-align: center;
+    }
+
+    .preview-5 .header-title {
+      color: var(--white);
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .preview-5 .header-subtitle {
+      color: var(--mint);
+      font-size: 14px;
+    }
+
+    .preview-5 .content {
+      padding: 25px;
+    }
+
+    .preview-5 .calendar-card {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(45,90,61,0.1);
+    }
+
+    .preview-5 .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .preview-5 .month-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--bark);
+    }
+
+    .preview-5 .google-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f3f4;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+
+    .preview-5 .google-badge span {
+      font-size: 11px;
+      color: #5f6368;
+      font-weight: 500;
+    }
+
+    .preview-5 .calendar-days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .preview-5 .day-label {
+      font-size: 11px;
+      color: var(--warm);
+      font-weight: 500;
+      padding: 8px 0;
+    }
+
+    .preview-5 .calendar-dates {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .preview-5 .date-cell {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: var(--bark);
+      border-radius: 8px;
+    }
+
+    .preview-5 .date-cell.has-task {
+      background: var(--light);
+      color: var(--forest);
+      font-weight: 600;
+    }
+
+    .preview-5 .date-cell.today {
+      background: var(--forest);
+      color: var(--white);
+      font-weight: 700;
+    }
+
+    .preview-5 .sync-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 20px;
+      padding: 12px;
+      background: var(--light);
+      border-radius: 12px;
+    }
+
+    .preview-5 .sync-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--forest);
+      border-radius: 50%;
+    }
+
+    .preview-5 .sync-text {
+      font-size: 13px;
+      color: var(--forest);
+      font-weight: 500;
+    }
+
+    /* SVG Icons */
+    .icon-check {
+      width: 16px;
+      height: 16px;
+      stroke: white;
+      stroke-width: 3;
+      fill: none;
+    }
+
+    /* Instructions */
+    .instructions {
+      max-width: 800px;
+      margin: 40px auto 0;
+      background: #2a2a2a;
+      border-radius: 16px;
+      padding: 30px;
+      color: #ccc;
+    }
+
+    .instructions h2 {
+      color: white;
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+
+    .instructions ul {
+      padding-left: 20px;
+      line-height: 1.8;
+    }
+
+    .instructions code {
+      background: #3a3a3a;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Trellis - App Store Previews</h1>
+  <p class="subtitle">iPhone 6.5" Screenshots (1284 x 2778px) - Open in browser and screenshot each preview</p>
+
+  <div class="previews-container">
+    <!-- Preview 1: Hero -->
+    <div class="preview preview-1">
+      <div class="content">
+        <div class="logo">
+          <svg viewBox="0 0 100 100" fill="none">
+            <rect x="20" y="60" width="12" height="30" rx="3" fill="#2D5A3D"/>
+            <rect x="44" y="40" width="12" height="50" rx="3" fill="#6B8E6B"/>
+            <rect x="68" y="20" width="12" height="70" rx="3" fill="#A8D5A2"/>
+            <path d="M26 55 Q26 30 50 25 Q74 20 74 15" stroke="#2D5A3D" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="app-name">Trellis</div>
+        <div class="tagline">Turn your dreams into achievable daily actions</div>
+
+        <div class="features">
+          <div class="feature">
+            <div class="feature-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2D5A3D" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <span class="feature-text">AI-powered personalized plans</span>
+          </div>
+          <div class="feature">
+            <div class="feature-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2D5A3D" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+            <span class="feature-text">Track daily progress</span>
+          </div>
+          <div class="feature">
+            <div class="feature-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2D5A3D" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+            </div>
+            <span class="feature-text">Sync with Google Calendar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview 2: AI Planning -->
+    <div class="preview preview-2">
+      <div class="header">
+        <div class="header-title">AI Creates Your Plan</div>
+        <div class="header-subtitle">Personalized weekly tasks just for you</div>
+      </div>
+      <div class="content">
+        <div class="ai-card">
+          <div class="ai-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2D5A3D" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            <span>AI Generated Plan</span>
+          </div>
+          <div class="goal-title">Learn Conversational Spanish</div>
+          <div class="week-label">Week 1 - Foundation</div>
+          <div class="task">
+            <div class="task-check"></div>
+            <span class="task-text">Complete Duolingo Basics 1</span>
+            <span class="task-time">30 min</span>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <span class="task-text">Learn 20 common phrases</span>
+            <span class="task-time">25 min</span>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <span class="task-text">Watch Spanish tutorial video</span>
+            <span class="task-time">20 min</span>
+          </div>
+        </div>
+        <div class="ai-card" style="opacity: 0.6;">
+          <div class="week-label">Week 2 - Building</div>
+          <div class="task">
+            <div class="task-check"></div>
+            <span class="task-text">Practice verb conjugations</span>
+            <span class="task-time">30 min</span>
+          </div>
+          <div class="task">
+            <div class="task-check"></div>
+            <span class="task-text">Listen to Spanish podcast</span>
+            <span class="task-time">20 min</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview 3: Daily Tasks -->
+    <div class="preview preview-3">
+      <div class="header">
+        <div class="header-title">Daily Task Tracking</div>
+        <div class="header-subtitle">Stay on track with clear daily goals</div>
+      </div>
+      <div class="content">
+        <div class="date-header">
+          <span class="date-text">Today, December 16</span>
+          <span class="progress-badge">2 of 3 done</span>
+        </div>
+
+        <div class="task-card completed">
+          <div class="check-circle done">
+            <svg class="icon-check" viewBox="0 0 24 24">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div class="task-info">
+            <div class="task-title">Complete Duolingo lesson</div>
+            <div class="task-meta">8:00 PM · 30 min</div>
+          </div>
+        </div>
+
+        <div class="task-card completed">
+          <div class="check-circle done">
+            <svg class="icon-check" viewBox="0 0 24 24">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div class="task-info">
+            <div class="task-title">Practice vocabulary flashcards</div>
+            <div class="task-meta">8:30 PM · 20 min</div>
+          </div>
+        </div>
+
+        <div class="task-card">
+          <div class="check-circle"></div>
+          <div class="task-info">
+            <div class="task-title">Watch Spanish conversation video</div>
+            <div class="task-meta">9:00 PM · 15 min</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview 4: Progress -->
+    <div class="preview preview-4">
+      <div class="header">
+        <div class="header-title">Track Your Progress</div>
+        <div class="header-subtitle">Visualize your journey to success</div>
+      </div>
+      <div class="content">
+        <div class="progress-card">
+          <div class="progress-ring">
+            <svg width="140" height="140">
+              <circle class="bg" cx="70" cy="70" r="60"/>
+              <circle class="progress" cx="70" cy="70" r="60"/>
+            </svg>
+            <div class="progress-percent">70%</div>
+          </div>
+          <div class="stats-row">
+            <div class="stat">
+              <div class="stat-value">21</div>
+              <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">9</div>
+              <div class="stat-label">Remaining</div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">3</div>
+              <div class="stat-label">Weeks Left</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="week-card">
+          <div class="week-header">
+            <span class="week-title">Week 4 Progress</span>
+            <span class="week-badge">Current Week</span>
+          </div>
+          <div class="week-bar">
+            <div class="week-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview 5: Calendar Sync -->
+    <div class="preview preview-5">
+      <div class="header">
+        <div class="header-title">Calendar Integration</div>
+        <div class="header-subtitle">Sync tasks with Google Calendar</div>
+      </div>
+      <div class="content">
+        <div class="calendar-card">
+          <div class="calendar-header">
+            <span class="month-title">December 2024</span>
+            <div class="google-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span>Synced</span>
+            </div>
+          </div>
+          <div class="calendar-days">
+            <span class="day-label">S</span>
+            <span class="day-label">M</span>
+            <span class="day-label">T</span>
+            <span class="day-label">W</span>
+            <span class="day-label">T</span>
+            <span class="day-label">F</span>
+            <span class="day-label">S</span>
+          </div>
+          <div class="calendar-dates">
+            <span class="date-cell">1</span>
+            <span class="date-cell has-task">2</span>
+            <span class="date-cell">3</span>
+            <span class="date-cell has-task">4</span>
+            <span class="date-cell">5</span>
+            <span class="date-cell has-task">6</span>
+            <span class="date-cell">7</span>
+            <span class="date-cell">8</span>
+            <span class="date-cell has-task">9</span>
+            <span class="date-cell">10</span>
+            <span class="date-cell has-task">11</span>
+            <span class="date-cell">12</span>
+            <span class="date-cell has-task">13</span>
+            <span class="date-cell">14</span>
+            <span class="date-cell">15</span>
+            <span class="date-cell today">16</span>
+            <span class="date-cell">17</span>
+            <span class="date-cell has-task">18</span>
+            <span class="date-cell">19</span>
+            <span class="date-cell has-task">20</span>
+            <span class="date-cell">21</span>
+            <span class="date-cell">22</span>
+            <span class="date-cell has-task">23</span>
+            <span class="date-cell">24</span>
+            <span class="date-cell has-task">25</span>
+            <span class="date-cell">26</span>
+            <span class="date-cell has-task">27</span>
+            <span class="date-cell">28</span>
+            <span class="date-cell">29</span>
+            <span class="date-cell has-task">30</span>
+            <span class="date-cell">31</span>
+          </div>
+          <div class="sync-status">
+            <span class="sync-dot"></span>
+            <span class="sync-text">All tasks synced to calendar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="instructions">
+    <h2>How to Use These Previews</h2>
+    <ul>
+      <li>Open this file in a browser: <code>open app-store-preview.html</code></li>
+      <li>Each preview is sized for App Store screenshots (scaled down for viewing)</li>
+      <li>Screenshot each preview individually or use a design tool to export</li>
+      <li>For actual App Store, use device frames and scale to 1284 x 2778px (6.5" iPhone)</li>
+      <li>Colors match your Trellis theme: Forest (#2D5A3D), Sage (#6B8E6B), Cream (#FAF8F5)</li>
+    </ul>
+  </div>
+</body>
+</html>
