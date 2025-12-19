@@ -1,0 +1,74 @@
+interface TrellisIconProps {
+  size?: number;
+  color?: string;
+  className?: string;
+}
+
+export function TrellisIcon({ size = 24, color = '#2D5A3D', className }: TrellisIconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 1024 1024"
+      fill="none"
+      className={className}
+    >
+      <g>
+        {/* Trellis Structure - geometric diamond lattice pattern */}
+        <g
+          stroke={color}
+          strokeWidth={28}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={0.95}
+        >
+          {/* Vertical center line */}
+          <line x1={512} y1={680} x2={512} y2={280} />
+
+          {/* Diamond lattice pattern */}
+          {/* Left diagonal lines */}
+          <line x1={420} y1={580} x2={512} y2={480} />
+          <line x1={380} y1={480} x2={512} y2={340} />
+
+          {/* Right diagonal lines */}
+          <line x1={604} y1={580} x2={512} y2={480} />
+          <line x1={644} y1={480} x2={512} y2={340} />
+
+          {/* Lower diamond */}
+          <line x1={420} y1={580} x2={512} y2={680} />
+          <line x1={604} y1={580} x2={512} y2={680} />
+
+          {/* Cross connections forming diamond shapes */}
+          <line x1={380} y1={480} x2={420} y2={580} />
+          <line x1={644} y1={480} x2={604} y2={580} />
+        </g>
+
+        {/* Growing Plant/Vine - stylized leaves emerging upward */}
+        <g fill={color} opacity={0.95}>
+          {/* Main stem (integrated with trellis) */}
+          <path d="M 498 680 Q 498 620, 498 560 Q 498 460, 498 380 Q 498 320, 502 280 L 526 280 Q 526 320, 526 380 Q 526 460, 526 560 Q 526 620, 526 680 Z" />
+
+          {/* Bottom leaf pair */}
+          <path d="M 498 620 Q 450 630, 420 610 Q 410 600, 420 590 Q 460 580, 498 600 Z" />
+          <path d="M 526 620 Q 574 630, 604 610 Q 614 600, 604 590 Q 564 580, 526 600 Z" />
+
+          {/* Middle leaf pair - larger */}
+          <path d="M 498 500 Q 430 520, 390 490 Q 375 475, 390 460 Q 450 450, 498 480 Z" />
+          <path d="M 526 500 Q 594 520, 634 490 Q 649 475, 634 460 Q 574 450, 526 480 Z" />
+
+          {/* Upper leaf pair */}
+          <path d="M 498 380 Q 450 390, 425 370 Q 415 360, 425 350 Q 465 345, 498 365 Z" />
+          <path d="M 526 380 Q 574 390, 599 370 Q 609 360, 599 350 Q 559 345, 526 365 Z" />
+
+          {/* Top emerging leaves - smallest, suggesting growth */}
+          <path d="M 498 300 Q 470 305, 455 290 Q 450 283, 455 278 Q 475 275, 498 285 Z" />
+          <path d="M 526 300 Q 554 305, 569 290 Q 574 283, 569 278 Q 549 275, 526 285 Z" />
+
+          {/* Top bud/new growth */}
+          <ellipse cx={512} cy={270} rx={18} ry={24} />
+        </g>
+      </g>
+    </svg>
+  );
+}

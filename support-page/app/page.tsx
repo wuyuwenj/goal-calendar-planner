@@ -1,5 +1,7 @@
-import { Sprout, Mail, ArrowRight } from 'lucide-react';
+import { Mail, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { FAQItem } from './components/FAQItem';
+import { TrellisIcon } from './components/TrellisIcon';
 
 const faqs = [
   {
@@ -68,7 +70,7 @@ export default function SupportPage() {
       {/* Header */}
       <header className="flex flex-col items-center justify-center mb-16 text-center space-y-4">
         <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-light-green shadow-sm mb-2">
-          <Sprout className="text-forest" size={32} strokeWidth={1.5} />
+          <TrellisIcon size={32} color="#2D5A3D" />
         </div>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-forest">
           Trellis
@@ -128,17 +130,17 @@ export default function SupportPage() {
       {/* Footer */}
       <footer className="mt-20 pt-8 border-t border-sand flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-warm">
         <div className="flex items-center gap-2">
-          <Sprout className="text-sage" size={16} strokeWidth={1.5} />
+          <TrellisIcon size={16} color="#6B8E6B" />
           <span className="font-medium">&copy; 2025 Trellis Inc.</span>
         </div>
 
         <div className="flex gap-6">
-          <a href="#" className="hover:text-bark transition-colors">
+          <Link href="/privacy" className="hover:text-bark transition-colors">
             Privacy Policy
-          </a>
-          <a href="#" className="hover:text-bark transition-colors">
+          </Link>
+          <Link href="/terms" className="hover:text-bark transition-colors">
             Terms of Service
-          </a>
+          </Link>
         </div>
       </footer>
     </div>
