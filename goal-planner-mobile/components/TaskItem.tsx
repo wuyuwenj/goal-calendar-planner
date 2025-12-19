@@ -134,7 +134,8 @@ const styles = StyleSheet.create({
     color: COLORS.primary.sage,
   },
   titleMissed: {
-    color: COLORS.neutral[500],
+    textDecorationLine: 'line-through',
+    color: COLORS.system.error,
   },
   meta: {
     flexDirection: 'row',

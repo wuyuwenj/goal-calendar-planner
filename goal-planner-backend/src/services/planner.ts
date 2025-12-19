@@ -89,6 +89,7 @@ export async function createGoalWithPlan(
     goalId: string;
     title: string;
     description: string;
+    resourceUrl?: string;
     scheduledDate: Date;
     scheduledTime: string;
     durationMinutes: number;
@@ -121,6 +122,7 @@ export async function createGoalWithPlan(
         goalId: goal.id,
         title: task.title,
         description: task.description,
+        resourceUrl: task.resourceUrl,
         scheduledDate: utcDate,
         scheduledTime: task.time,
         durationMinutes: task.durationMinutes,

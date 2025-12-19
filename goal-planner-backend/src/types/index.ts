@@ -47,6 +47,7 @@ export const UpdateProfileSchema = z.object({
 export interface GeneratedTask {
   title: string;
   description: string;
+  resourceUrl?: string;
   dayOfWeek: number;
   time: string;
   durationMinutes: number;

@@ -11,7 +11,7 @@ import { formatDateSmart } from '../../utils/date';
 import type { Task } from '../../types';
 
 export default function CalendarScreen() {
-  const { tasks, currentGoal, fetchGoalById, toggleTask, isLoading, syncToCalendar } =
+  const { tasks, currentGoal, fetchGoalById, toggleTask, markTaskMissed, isLoading, isInitialLoad, syncToCalendar } =
     useGoalStore();
   const { signInWithCalendarAccess, isLoading: authLoading } = useAuthStore();
   const [groupedTasks, setGroupedTasks] = useState<Record<string, Task[]>>({});
@@ -20,7 +20,8 @@ export default function CalendarScreen() {
 
   useEffect(() => {
     if (currentGoal) {
-      fetchGoalById(currentGoal.id);
+      // Skip fetch if data is fresh (loaded within last 30 seconds)
+      fetchGoalById(currentGoal.id, { skipIfFresh: true, background: true });
     }
   }, [currentGoal?.id]);
 
@@ -46,7 +47,8 @@ export default function CalendarScreen() {
     setGroupedTasks(grouped);
   }, [tasks]);
 
-  if (isLoading) {
+  // Only show spinner on initial load when we have no tasks
+  if (isLoading && isInitialLoad && tasks.length === 0) {
     return <LoadingSpinner message="Loading calendar..." />;
   }
 
@@ -171,6 +173,11 @@ export default function CalendarScreen() {
         onToggleComplete={() => {
           if (selectedTask) {
             toggleTask(selectedTask.id);
+          }
+        }}
+        onMarkMissed={() => {
+          if (selectedTask) {
+            markTaskMissed(selectedTask.id);
           }
         }}
       />

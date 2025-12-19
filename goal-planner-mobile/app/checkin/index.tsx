@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronRight, X } from 'lucide-react-native';
 import { StepIndicator } from '../../components/StepIndicator';
-import { Checkbox } from '../../components/ui/Checkbox';
+import { TaskStatusCard } from '../../components/TaskStatusCard';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useGoalStore } from '../../store/goal';
@@ -28,23 +28,16 @@ export default function CheckInTasksScreen() {
     setTaskStatuses(initialStatuses);
   }, [tasks]);
 
-  const toggleTask = (taskId: string) => {
+  const handleStatusChange = (taskId: string, status: 'completed' | 'missed' | undefined) => {
     setTaskStatuses((prev) => {
       const newStatuses = { ...prev };
-      if (newStatuses[taskId] === 'completed') {
+      if (status === undefined) {
         delete newStatuses[taskId];
       } else {
-        newStatuses[taskId] = 'completed';
+        newStatuses[taskId] = status;
       }
       return newStatuses;
     });
-  };
-
-  const markAsMissed = (taskId: string) => {
-    setTaskStatuses((prev) => ({
-      ...prev,
-      [taskId]: 'missed',
-    }));
   };
 
   const handleNext = () => {
@@ -55,10 +48,11 @@ export default function CheckInTasksScreen() {
     }));
 
     router.push({
-      pathname: '/checkin/notes',
+      pathname: '/checkin/adjust',
       params: {
         taskResults: JSON.stringify(taskResults),
         weekNumber: currentWeek.toString(),
+        completionRate: completionRate.toString(),
       },
     });
   };
@@ -83,46 +77,24 @@ export default function CheckInTasksScreen() {
 
       <ScrollView style={styles.scrollView}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={2} currentStep={1} />
+          <StepIndicator totalSteps={3} currentStep={1} />
 
           <View style={styles.titleSection}>
             <Text style={styles.title}>Week {currentWeek} review</Text>
             <Text style={styles.subtitle}>
-              Mark the tasks you completed this week
+              Tap to cycle: Done → Missed → Unmarked
             </Text>
           </View>
 
           <View style={styles.taskList}>
-            {currentWeekTasks.map((task) => {
-              const status = taskStatuses[task.id];
-              const isCompleted = status === 'completed';
-              const isMissed = status === 'missed';
-
-              return (
-                <TouchableOpacity
-                  key={task.id}
-                  onPress={() => toggleTask(task.id)}
-                  style={[
-                    styles.taskCard,
-                    isCompleted && styles.taskCardCompleted,
-                    isMissed && styles.taskCardMissed,
-                  ]}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.taskCheckbox}>
-                    <Checkbox
-                      checked={isCompleted}
-                      onToggle={() => toggleTask(task.id)}
-                      variant={isCompleted ? 'success' : 'default'}
-                    />
-                  </View>
-                  <View style={styles.taskContent}>
-                    <Text style={styles.taskTitle}>{task.title}</Text>
-                    <Text style={styles.taskMeta}>{task.durationMinutes}min</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {currentWeekTasks.map((task) => (
+              <TaskStatusCard
+                key={task.id}
+                task={task}
+                status={taskStatuses[task.id]}
+                onStatusChange={(status) => handleStatusChange(task.id, status)}
+              />
+            ))}
           </View>
 
           <Card style={styles.statsCard}>
@@ -189,40 +161,6 @@ const styles = StyleSheet.create({
   taskList: {
     gap: 8,
     marginBottom: 24,
-  },
-  taskCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e5e5e5',
-    backgroundColor: '#fff',
-  },
-  taskCardCompleted: {
-    borderColor: '#16a34a',
-    backgroundColor: '#f0fdf4',
-  },
-  taskCardMissed: {
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
-    opacity: 0.6,
-  },
-  taskCheckbox: {
-    marginTop: 2,
-  },
-  taskContent: {
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: 16,
-    color: '#171717',
-    marginBottom: 2,
-  },
-  taskMeta: {
-    fontSize: 14,
-    color: '#737373',
   },
   statsCard: {
     backgroundColor: '#fafafa',

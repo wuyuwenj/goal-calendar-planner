@@ -24,6 +24,8 @@ interface GoalState {
   checkIns: CheckIn[];
   progress: GoalProgress | null;
   isLoading: boolean;
+  isInitialLoad: boolean; // True only on first load, not refreshes
+  lastFetched: number | null; // Timestamp of last successful fetch
   error: string | null;
   pendingGoalId: string | null;
 
@@ -33,8 +35,9 @@ interface GoalState {
   resetOnboarding: () => void;
 
   // Goal actions
-  fetchGoals: () => Promise<Goal[]>;
-  fetchGoalById: (id: string) => Promise<void>;
+  fetchGoals: (options?: { background?: boolean }) => Promise<Goal[]>;
+  fetchGoalById: (id: string, options?: { background?: boolean; skipIfFresh?: boolean }) => Promise<void>;
+  isDataFresh: (maxAgeMs?: number) => boolean;
   createGoal: (data: OnboardingData) => Promise<Goal | PendingGoalResult>;
   checkPendingGoal: (pendingId: string) => Promise<{ status: string; goal?: Goal; error?: string }>;
   clearPendingGoal: () => void;
@@ -45,13 +48,15 @@ interface GoalState {
   fetchUpcomingTasks: (limit?: number) => Promise<Task[]>;
   toggleTask: (taskId: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
+  markTaskMissed: (taskId: string) => Promise<void>;
 
   // Check-in actions
   submitCheckIn: (
     goalId: string,
     weekNumber: number,
     taskResults: Array<{ taskId: string; status: string }>,
-    notes?: string
+    notes?: string,
+    adjustment?: 'decrease' | 'maintain' | 'increase'
   ) => Promise<void>;
 
   // Calendar sync
@@ -73,6 +78,9 @@ function calculateTargetDate(timeline: Timeline, customWeeks?: number): string {
   return date.toISOString();
 }
 
+// Data is considered fresh for 30 seconds
+const DEFAULT_FRESH_DURATION = 30 * 1000;
+
 export const useGoalStore = create<GoalState>((set, get) => ({
   currentGoal: null,
   goals: [],
@@ -80,6 +88,8 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   checkIns: [],
   progress: null,
   isLoading: false,
+  isInitialLoad: true,
+  lastFetched: null,
   error: null,
   pendingGoalId: null,
   onboardingData: {},
@@ -94,8 +104,21 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     set({ onboardingData: {} });
   },
 
-  fetchGoals: async () => {
-    set({ isLoading: true, error: null });
+  isDataFresh: (maxAgeMs = DEFAULT_FRESH_DURATION) => {
+    const { lastFetched } = get();
+    if (!lastFetched) return false;
+    return Date.now() - lastFetched < maxAgeMs;
+  },
+
+  fetchGoals: async (options = {}) => {
+    const { background = false } = options;
+    const { isInitialLoad } = get();
+
+    // Only show loading spinner on initial load, not background refreshes
+    if (!background && isInitialLoad) {
+      set({ isLoading: true, error: null });
+    }
+
     try {
       const response = await apiClient.get<{ goals: Goal[] }>('/api/goals');
       const goals = response.goals || [];
@@ -108,12 +131,26 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       set({ error: error.message || 'Failed to fetch goals' });
       return [];
     } finally {
-      set({ isLoading: false });
+      if (!background && isInitialLoad) {
+        set({ isLoading: false });
+      }
     }
   },
 
-  fetchGoalById: async (id: string) => {
-    set({ isLoading: true, error: null });
+  fetchGoalById: async (id: string, options = {}) => {
+    const { background = false, skipIfFresh = false } = options;
+    const { isInitialLoad, currentGoal } = get();
+
+    // Skip fetch if data is fresh and we have the same goal loaded
+    if (skipIfFresh && currentGoal?.id === id && get().isDataFresh()) {
+      return;
+    }
+
+    // Only show loading spinner on initial load, not background refreshes
+    if (!background && isInitialLoad) {
+      set({ isLoading: true, error: null });
+    }
+
     try {
       const response = await apiClient.get<{
         goal: Goal & { tasks: Task[]; checkIns: CheckIn[] };
@@ -124,11 +161,15 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         tasks: response.goal.tasks || [],
         checkIns: response.goal.checkIns || [],
         progress: response.progress,
+        lastFetched: Date.now(),
+        isInitialLoad: false,
       });
     } catch (error: any) {
       set({ error: error.message || 'Failed to fetch goal' });
     } finally {
-      set({ isLoading: false });
+      if (!background && isInitialLoad) {
+        set({ isLoading: false });
+      }
     }
   },
 
@@ -273,7 +314,32 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     }
   },
 
-  submitCheckIn: async (goalId, weekNumber, taskResults, notes) => {
+  markTaskMissed: async (taskId: string) => {
+    const task = get().tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const previousStatus = task.status;
+
+    // Optimistic update
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId ? { ...t, status: 'missed' } : t
+      ),
+    }));
+
+    try {
+      await apiClient.patch(`/api/tasks/${taskId}`, { status: 'missed' });
+    } catch (error: any) {
+      // Revert on error
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.id === taskId ? { ...t, status: previousStatus } : t
+        ),
+      }));
+    }
+  },
+
+  submitCheckIn: async (goalId, weekNumber, taskResults, notes, adjustment) => {
     set({ isLoading: true, error: null });
     try {
       const response = await apiClient.post<{
@@ -285,6 +351,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         weekNumber,
         taskResults,
         notes,
+        adjustment,
       });
 
       // Refresh goal data

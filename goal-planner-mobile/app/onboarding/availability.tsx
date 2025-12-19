@@ -1,16 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Modal, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronRight, Check, Clock, X, Loader2 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Clock, X } from 'lucide-react-native';
+import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { StepIndicator } from '../../components/StepIndicator';
 import { Button } from '../../components/ui/Button';
 import { useGoalStore } from '../../store/goal';
-import { DAYS } from '../../constants/theme';
+import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
 
-const WEEKDAYS = DAYS.filter((d) => d.index >= 1 && d.index <= 5);
-const WEEKEND = DAYS.filter((d) => d.index === 0 || d.index === 6);
-const ORDERED_DAYS = [...WEEKDAYS, ...WEEKEND];
+// Days starting from Monday
+const DAYS = [
+  { index: 1, short: 'M', name: 'Monday' },
+  { index: 2, short: 'T', name: 'Tuesday' },
+  { index: 3, short: 'W', name: 'Wednesday' },
+  { index: 4, short: 'T', name: 'Thursday' },
+  { index: 5, short: 'F', name: 'Friday' },
+  { index: 6, short: 'S', name: 'Saturday' },
+  { index: 0, short: 'S', name: 'Sunday' },
+];
 
 // Generate time options from 5:00 AM to 11:00 PM in 30-minute increments
 const TIME_OPTIONS: string[] = [];
@@ -29,26 +37,64 @@ const formatTimeDisplay = (time: string): string => {
   return `${displayHour}:${minute} ${period}`;
 };
 
-interface DayAvailability {
-  startTime: string;
-  endTime: string;
+function DayPill({
+  day,
+  isSelected,
+  onPress,
+  index,
+}: {
+  day: { index: number; short: string; name: string };
+  isSelected: boolean;
+  onPress: () => void;
+  index: number;
+}) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.9);
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1);
+  };
+
+  return (
+    <Animated.View entering={FadeInUp.delay(200 + index * 50).duration(300)}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <Animated.View
+          style={[
+            styles.dayPill,
+            isSelected && styles.dayPillSelected,
+            animatedStyle,
+          ]}
+        >
+          <Text style={[styles.dayPillText, isSelected && styles.dayPillTextSelected]}>
+            {day.short}
+          </Text>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  );
 }
 
 export default function AvailabilityScreen() {
   const router = useRouter();
   const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
 
-  const [selectedDays, setSelectedDays] = useState<Record<number, DayAvailability>>({
-    1: { startTime: '17:00', endTime: '19:00' }, // Monday: 5-7 PM
-    3: { startTime: '17:00', endTime: '19:00' }, // Wednesday: 5-7 PM
-    5: { startTime: '17:00', endTime: '19:00' }, // Friday: 5-7 PM
-  });
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 3, 5]); // Mon, Wed, Fri default
+  const [startTime, setStartTime] = useState('20:00');
+  const [endTime, setEndTime] = useState('21:00');
 
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<{
-    dayIndex: number;
-    field: 'startTime' | 'endTime';
-  } | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<'startTime' | 'endTime' | null>(null);
 
   // Pending goal state
   const [pendingState, setPendingState] = useState<{
@@ -59,9 +105,8 @@ export default function AvailabilityScreen() {
   }>({ isPending: false, pendingId: null, pollCount: 0, error: null });
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const MAX_POLL_COUNT = 30; // Poll for up to 5 minutes (30 * 10 seconds)
+  const MAX_POLL_COUNT = 30;
 
-  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
@@ -70,14 +115,12 @@ export default function AvailabilityScreen() {
     };
   }, []);
 
-  // Start polling for pending goal
   const startPolling = (pendingId: string) => {
     setPendingState({ isPending: true, pendingId, pollCount: 0, error: null });
 
     pollIntervalRef.current = setInterval(async () => {
       setPendingState((prev) => {
         if (prev.pollCount >= MAX_POLL_COUNT) {
-          // Stop polling after max attempts
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
           }
@@ -94,14 +137,12 @@ export default function AvailabilityScreen() {
         const result = await checkPendingGoal(pendingId);
 
         if (result.status === 'completed') {
-          // Goal is ready
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
           }
           clearPendingGoal();
-          router.replace('/(tabs)');
+          router.replace('./success' as any);
         } else if (result.status === 'failed') {
-          // Goal creation failed
           if (pollIntervalRef.current) {
             clearInterval(pollIntervalRef.current);
           }
@@ -111,70 +152,61 @@ export default function AvailabilityScreen() {
             error: result.error || 'Failed to create goal. Please try again.',
           }));
         }
-        // If still pending or processing, continue polling
       } catch (error) {
         console.error('Error polling pending goal:', error);
       }
-    }, 10000); // Poll every 10 seconds
+    }, 10000);
   };
 
   const toggleDay = (dayIndex: number) => {
     setSelectedDays((prev) => {
-      const newDays = { ...prev };
-      if (newDays[dayIndex] !== undefined) {
-        delete newDays[dayIndex];
+      if (prev.includes(dayIndex)) {
+        return prev.filter((d) => d !== dayIndex);
       } else {
-        newDays[dayIndex] = { startTime: '17:00', endTime: '19:00' };
+        return [...prev, dayIndex];
       }
-      return newDays;
     });
   };
 
-  const openTimePicker = (dayIndex: number, field: 'startTime' | 'endTime') => {
-    setPickerTarget({ dayIndex, field });
+  const openTimePicker = (field: 'startTime' | 'endTime') => {
+    setPickerTarget(field);
     setPickerVisible(true);
   };
 
   const selectTime = (time: string) => {
     if (!pickerTarget) return;
 
-    setSelectedDays((prev) => {
-      const dayData = prev[pickerTarget.dayIndex];
-      if (!dayData) return prev;
-
-      const updated = { ...dayData };
-      if (pickerTarget.field === 'startTime') {
-        updated.startTime = time;
-        // If start time is after end time, adjust end time
-        if (time >= updated.endTime) {
-          const timeIndex = TIME_OPTIONS.indexOf(time);
-          if (timeIndex < TIME_OPTIONS.length - 1) {
-            updated.endTime = TIME_OPTIONS[timeIndex + 1];
-          }
-        }
-      } else {
-        updated.endTime = time;
-        // If end time is before start time, adjust start time
-        if (time <= updated.startTime) {
-          const timeIndex = TIME_OPTIONS.indexOf(time);
-          if (timeIndex > 0) {
-            updated.startTime = TIME_OPTIONS[timeIndex - 1];
-          }
+    if (pickerTarget === 'startTime') {
+      setStartTime(time);
+      if (time >= endTime) {
+        const timeIndex = TIME_OPTIONS.indexOf(time);
+        if (timeIndex < TIME_OPTIONS.length - 1) {
+          setEndTime(TIME_OPTIONS[timeIndex + 1]);
         }
       }
-
-      return { ...prev, [pickerTarget.dayIndex]: updated };
-    });
+    } else {
+      setEndTime(time);
+      if (time <= startTime) {
+        const timeIndex = TIME_OPTIONS.indexOf(time);
+        if (timeIndex > 0) {
+          setStartTime(TIME_OPTIONS[timeIndex - 1]);
+        }
+      }
+    }
 
     setPickerVisible(false);
     setPickerTarget(null);
   };
 
+  const handleBack = () => {
+    router.back();
+  };
+
   const handleCreate = async () => {
-    const availability = Object.entries(selectedDays).map(([day, times]) => ({
-      dayOfWeek: parseInt(day),
-      startTime: times.startTime,
-      endTime: times.endTime,
+    const availability = selectedDays.map((dayIndex) => ({
+      dayOfWeek: dayIndex,
+      startTime,
+      endTime,
     }));
 
     setOnboardingData({ availability });
@@ -186,17 +218,13 @@ export default function AvailabilityScreen() {
         availability,
       } as any);
 
-      // Check if the goal was queued (pending)
       if (result && 'pending' in result && result.pending) {
-        // Start polling for the pending goal
         startPolling(result.pendingId);
       } else {
-        // Goal created immediately
-        router.replace('/(tabs)');
+        router.replace('./success' as any);
       }
     } catch (error: any) {
       console.error('Failed to create goal:', error);
-      // Check if error has pending info (from rate limiting)
       if (error.pending && error.pendingId) {
         startPolling(error.pendingId);
       } else {
@@ -212,109 +240,113 @@ export default function AvailabilityScreen() {
     setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
   };
 
-  const canProceed = Object.keys(selectedDays).length > 0;
+  const canProceed = selectedDays.length > 0;
 
   const getFilteredTimeOptions = () => {
     if (!pickerTarget) return TIME_OPTIONS;
 
-    const dayData = selectedDays[pickerTarget.dayIndex];
-    if (!dayData) return TIME_OPTIONS;
-
-    if (pickerTarget.field === 'endTime') {
-      // For end time, only show times after start time
-      const startIndex = TIME_OPTIONS.indexOf(dayData.startTime);
+    if (pickerTarget === 'endTime') {
+      const startIndex = TIME_OPTIONS.indexOf(startTime);
       return TIME_OPTIONS.slice(startIndex + 1);
     } else {
-      // For start time, only show times before end time
-      const endIndex = TIME_OPTIONS.indexOf(dayData.endTime);
+      const endIndex = TIME_OPTIONS.indexOf(endTime);
       return TIME_OPTIONS.slice(0, endIndex);
     }
   };
 
+  const selectedDayNames = selectedDays
+    .map((i) => DAYS.find((d) => d.index === i)?.name)
+    .filter(Boolean)
+    .join(', ');
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <StepIndicator totalSteps={4} currentStep={4} />
+          <StepIndicator totalSteps={7} currentStep={6} />
 
-          <View style={styles.header}>
-            <Text style={styles.title}>Weekly availability</Text>
+          <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
+            <Text style={styles.title}>When can you practice?</Text>
             <Text style={styles.subtitle}>
-              Select days and time ranges when you can work on your goal
+              Pick the days and time that work best for you
             </Text>
-          </View>
+          </Animated.View>
 
-          <View style={styles.daysList}>
-            {ORDERED_DAYS.map((day) => {
-              const dayData = selectedDays[day.index];
-              const isSelected = dayData !== undefined;
-
-              return (
-                <View
+          {/* Day Pills Row */}
+          <Animated.View entering={FadeInUp.delay(200).duration(500)} style={styles.daysSection}>
+            <Text style={styles.sectionLabel}>Select days</Text>
+            <View style={styles.daysRow}>
+              {DAYS.map((day, index) => (
+                <DayPill
                   key={day.index}
-                  style={[styles.dayCard, isSelected && styles.dayCardSelected]}
-                >
-                  <TouchableOpacity
-                    onPress={() => toggleDay(day.index)}
-                    style={styles.dayHeader}
-                  >
-                    <View style={styles.dayLeft}>
-                      <View
-                        style={[
-                          styles.checkbox,
-                          isSelected && styles.checkboxSelected,
-                        ]}
-                      >
-                        {isSelected && (
-                          <Check size={12} color="#fff" strokeWidth={3} />
-                        )}
-                      </View>
-                      <Text style={styles.dayName}>{day.name}</Text>
-                    </View>
-                  </TouchableOpacity>
+                  day={day}
+                  isSelected={selectedDays.includes(day.index)}
+                  onPress={() => toggleDay(day.index)}
+                  index={index}
+                />
+              ))}
+            </View>
+            {selectedDays.length > 0 && (
+              <Text style={styles.selectedDaysText}>
+                {selectedDayNames}
+              </Text>
+            )}
+          </Animated.View>
 
-                  {isSelected && (
-                    <View style={styles.timeRangeContainer}>
-                      <TouchableOpacity
-                        style={styles.timeButton}
-                        onPress={() => openTimePicker(day.index, 'startTime')}
-                      >
-                        <Clock size={14} color="#525252" />
-                        <Text style={styles.timeButtonText}>
-                          {formatTimeDisplay(dayData.startTime)}
-                        </Text>
-                      </TouchableOpacity>
+          {/* Time Range */}
+          <Animated.View entering={FadeInUp.delay(400).duration(500)} style={styles.timeSection}>
+            <Text style={styles.sectionLabel}>Preferred time</Text>
+            <View style={styles.timeRangeContainer}>
+              <Pressable
+                style={styles.timeButton}
+                onPress={() => openTimePicker('startTime')}
+              >
+                <Clock size={18} color={COLORS.primary.forest} />
+                <Text style={styles.timeButtonText}>{formatTimeDisplay(startTime)}</Text>
+              </Pressable>
 
-                      <Text style={styles.timeSeparator}>to</Text>
+              <Text style={styles.timeSeparator}>to</Text>
 
-                      <TouchableOpacity
-                        style={styles.timeButton}
-                        onPress={() => openTimePicker(day.index, 'endTime')}
-                      >
-                        <Clock size={14} color="#525252" />
-                        <Text style={styles.timeButtonText}>
-                          {formatTimeDisplay(dayData.endTime)}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
+              <Pressable
+                style={styles.timeButton}
+                onPress={() => openTimePicker('endTime')}
+              >
+                <Clock size={18} color={COLORS.primary.forest} />
+                <Text style={styles.timeButtonText}>{formatTimeDisplay(endTime)}</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+
+          {/* Summary Card */}
+          {selectedDays.length > 0 && (
+            <Animated.View entering={FadeInUp.delay(500).duration(500)} style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Your schedule</Text>
+              <Text style={styles.summaryText}>
+                {selectedDays.length} day{selectedDays.length > 1 ? 's' : ''} per week, {formatTimeDisplay(startTime)} - {formatTimeDisplay(endTime)}
+              </Text>
+            </Animated.View>
+          )}
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button variant="secondary" onPress={() => router.back()}>
-          Back
-        </Button>
-        <View style={styles.flex}>
+        <View style={styles.backButtonWrapper}>
+          <Button
+            variant="ghost"
+            onPress={handleBack}
+            icon={<ChevronLeft size={20} color={COLORS.secondary.bark} />}
+            iconPosition="left"
+            fullWidth={false}
+          >
+            Back
+          </Button>
+        </View>
+        <View style={styles.nextButtonWrapper}>
           <Button
             onPress={handleCreate}
             disabled={!canProceed}
             loading={isLoading}
-            icon={<ChevronRight size={20} color="#fff" />}
+            icon={<ChevronRight size={20} color={COLORS.white} />}
           >
             Create Goal
           </Button>
@@ -332,26 +364,29 @@ export default function AvailabilityScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                Select {pickerTarget?.field === 'startTime' ? 'Start' : 'End'} Time
+                Select {pickerTarget === 'startTime' ? 'Start' : 'End'} Time
               </Text>
-              <TouchableOpacity
+              <Pressable
                 onPress={() => setPickerVisible(false)}
                 style={styles.modalCloseButton}
               >
-                <X size={24} color="#171717" />
-              </TouchableOpacity>
+                <X size={24} color={COLORS.secondary.bark} />
+              </Pressable>
             </View>
             <ScrollView style={styles.timeList}>
               {getFilteredTimeOptions().map((time) => (
-                <TouchableOpacity
+                <Pressable
                   key={time}
-                  style={styles.timeOption}
+                  style={({ pressed }) => [
+                    styles.timeOption,
+                    pressed && styles.timeOptionPressed,
+                  ]}
                   onPress={() => selectTime(time)}
                 >
                   <Text style={styles.timeOptionText}>
                     {formatTimeDisplay(time)}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </ScrollView>
           </View>
@@ -368,26 +403,24 @@ export default function AvailabilityScreen() {
           <View style={styles.pendingContent}>
             {pendingState.isPending ? (
               <>
-                <ActivityIndicator size="large" color="#171717" />
+                <ActivityIndicator size="large" color={COLORS.primary.forest} />
                 <Text style={styles.pendingTitle}>Creating your plan...</Text>
                 <Text style={styles.pendingSubtitle}>
-                  Our servers are busy. Your personalized plan is being generated and will be ready soon.
+                  Our AI is crafting a personalized plan just for you.
                 </Text>
                 <Text style={styles.pendingHint}>
-                  This may take a few minutes. Please don't close the app.
+                  This may take a moment. Please don't close the app.
                 </Text>
               </>
             ) : pendingState.error ? (
               <>
                 <View style={styles.errorIcon}>
-                  <X size={32} color="#dc2626" />
+                  <X size={32} color={COLORS.system.error} />
                 </View>
                 <Text style={styles.pendingTitle}>Something went wrong</Text>
                 <Text style={styles.pendingSubtitle}>{pendingState.error}</Text>
                 <View style={styles.retryButton}>
-                  <Button onPress={handleRetry}>
-                    Try Again
-                  </Button>
+                  <Button onPress={handleRetry}>Try Again</Button>
                 </View>
               </>
             ) : null}
@@ -401,105 +434,127 @@ export default function AvailabilityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: COLORS.white,
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 24,
-    paddingTop: 48,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xl,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: SPACING.xl,
   },
   title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#171717',
-    marginBottom: 8,
+    ...TYPOGRAPHY.h2,
+    color: COLORS.secondary.bark,
+    marginBottom: SPACING.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#737373',
+    ...TYPOGRAPHY.body,
+    color: COLORS.secondary.warm,
   },
-  daysList: {
-    gap: 12,
+  daysSection: {
+    marginBottom: SPACING.xl,
   },
-  dayCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e5e5e5',
+  sectionLabel: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '600',
+    color: COLORS.secondary.bark,
+    marginBottom: SPACING.md,
   },
-  dayCardSelected: {
-    borderColor: '#171717',
-    backgroundColor: '#fafafa',
-  },
-  dayHeader: {
+  daysRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dayLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#d4d4d4',
+  dayPill: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.secondary.cream,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.secondary.sand,
   },
-  checkboxSelected: {
-    backgroundColor: '#171717',
-    borderColor: '#171717',
+  dayPillSelected: {
+    backgroundColor: COLORS.primary.forest,
+    borderColor: COLORS.primary.forest,
   },
-  dayName: {
-    fontSize: 16,
-    color: '#171717',
+  dayPillText: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.secondary.bark,
+  },
+  dayPillTextSelected: {
+    color: COLORS.white,
+  },
+  selectedDaysText: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.secondary.warm,
+    marginTop: SPACING.sm,
+    textAlign: 'center',
+  },
+  timeSection: {
+    marginBottom: SPACING.xl,
   },
   timeRangeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    gap: 8,
+    gap: SPACING.md,
   },
   timeButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#d4d4d4',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.primary.light,
+    borderRadius: RADIUS.md,
+    borderWidth: 2,
+    borderColor: COLORS.primary.mint,
   },
   timeButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#171717',
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.primary.forest,
   },
   timeSeparator: {
-    fontSize: 14,
-    color: '#737373',
+    ...TYPOGRAPHY.body,
+    color: COLORS.secondary.warm,
+  },
+  summaryCard: {
+    backgroundColor: COLORS.primary.light,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary.mint,
+  },
+  summaryTitle: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '600',
+    color: COLORS.primary.forest,
+    marginBottom: SPACING.xs,
+  },
+  summaryText: {
+    ...TYPOGRAPHY.body,
+    color: COLORS.secondary.bark,
   },
   footer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
+    borderTopColor: COLORS.secondary.sand,
+    gap: SPACING.md,
   },
-  flex: {
+  backButtonWrapper: {
+    flexShrink: 0,
+  },
+  nextButtonWrapper: {
     flex: 1,
   },
   modalOverlay: {
@@ -508,39 +563,41 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
     maxHeight: '60%',
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: COLORS.secondary.sand,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#171717',
+    ...TYPOGRAPHY.h3,
+    color: COLORS.secondary.bark,
   },
   modalCloseButton: {
-    padding: 4,
+    padding: SPACING.xs,
   },
   timeList: {
-    padding: 8,
+    padding: SPACING.sm,
   },
   timeOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    borderBottomColor: COLORS.neutral[100],
+  },
+  timeOptionPressed: {
+    backgroundColor: COLORS.primary.light,
   },
   timeOptionText: {
-    fontSize: 16,
-    color: '#171717',
+    ...TYPOGRAPHY.body,
+    color: COLORS.secondary.bark,
     textAlign: 'center',
   },
   pendingOverlay: {
@@ -548,47 +605,46 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: SPACING.lg,
   },
   pendingContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 32,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xl,
     alignItems: 'center',
     width: '100%',
     maxWidth: 320,
   },
   pendingTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#171717',
-    marginTop: 20,
-    marginBottom: 12,
+    ...TYPOGRAPHY.h3,
+    color: COLORS.secondary.bark,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
     textAlign: 'center',
   },
   pendingSubtitle: {
-    fontSize: 15,
-    color: '#525252',
+    ...TYPOGRAPHY.body,
+    color: COLORS.secondary.warm,
     textAlign: 'center',
     lineHeight: 22,
   },
   pendingHint: {
-    fontSize: 13,
-    color: '#737373',
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.secondary.warm,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: SPACING.md,
     fontStyle: 'italic',
   },
   errorIcon: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#fef2f2',
+    backgroundColor: COLORS.system.errorLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
   retryButton: {
-    marginTop: 24,
+    marginTop: SPACING.lg,
     width: '100%',
   },
 });

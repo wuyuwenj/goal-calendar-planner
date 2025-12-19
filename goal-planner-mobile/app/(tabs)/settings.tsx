@@ -131,7 +131,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await deleteGoal(currentGoal.id);
-              router.replace('/onboarding');
+              router.replace('/onboarding/welcome');
             } catch (error) {
               Alert.alert('Error', 'Failed to delete goal');
             }

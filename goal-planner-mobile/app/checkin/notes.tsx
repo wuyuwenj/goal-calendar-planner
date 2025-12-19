@@ -16,12 +16,13 @@ export default function CheckInNotesScreen() {
 
   const taskResults = JSON.parse((params.taskResults as string) || '[]');
   const weekNumber = parseInt(params.weekNumber as string, 10) || 1;
+  const adjustment = (params.adjustment as string) || 'maintain';
 
   const handleSubmit = async () => {
     if (!currentGoal) return;
 
     try {
-      await submitCheckIn(currentGoal.id, weekNumber, taskResults, notes);
+      await submitCheckIn(currentGoal.id, weekNumber, taskResults, notes, adjustment);
       router.replace('/checkin/complete');
     } catch (error) {
       console.error('Failed to submit check-in:', error);
@@ -40,7 +41,7 @@ export default function CheckInNotesScreen() {
 
       <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
-          <StepIndicator totalSteps={2} currentStep={2} />
+          <StepIndicator totalSteps={3} currentStep={3} />
 
           <View style={styles.titleSection}>
             <Text style={styles.title}>Any notes?</Text>

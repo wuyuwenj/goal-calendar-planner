@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Sprout, Target } from 'lucide-react-native';
+import { Sprout, Leaf, Flower2, TreeDeciduous } from 'lucide-react-native';
 import { ProgressBar } from './ui/ProgressBar';
 import { COLORS, SHADOWS } from '../constants/theme';
 import type { Goal } from '../types';
@@ -16,18 +16,20 @@ export function GoalCard({ goal, currentWeek, totalWeeks }: GoalCardProps) {
   const weeksRemaining = Math.max(0, totalWeeks - currentWeek + 1);
 
   // Determine growth stage based on progress
-  const getGrowthEmoji = () => {
-    if (progress < 25) return '🌱';
-    if (progress < 50) return '🌿';
-    if (progress < 75) return '🪴';
-    return '🌳';
+  const getGrowthIcon = () => {
+    const iconColor = COLORS.white;
+    const iconSize = 24;
+    if (progress < 25) return <Sprout size={iconSize} color={iconColor} />;
+    if (progress < 50) return <Leaf size={iconSize} color={iconColor} />;
+    if (progress < 75) return <Flower2 size={iconSize} color={iconColor} />;
+    return <TreeDeciduous size={iconSize} color={iconColor} />;
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.iconContainer}>
-          <Text style={styles.growthEmoji}>{getGrowthEmoji()}</Text>
+          {getGrowthIcon()}
         </View>
         <View style={styles.titleContainer}>
           <Text style={styles.title} numberOfLines={2}>
@@ -66,12 +68,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   iconContainer: {
-    padding: 8,
+    padding: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 10,
-  },
-  growthEmoji: {
-    fontSize: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleContainer: {
     flex: 1,

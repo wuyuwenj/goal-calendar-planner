@@ -49,24 +49,43 @@ CRITICAL RULES FOR TASK SPECIFICITY:
 6. For creative work: exact deliverables, word counts, specific techniques to practice
 7. For skills: exact drills, specific scenarios to practice, measurable benchmarks
 
-**CRITICAL - DO NOT HALLUCINATE URLs:**
-- NEVER make up YouTube video URLs or any website URLs
-- Instead of fake URLs, describe what to search for: "Search YouTube for 'Alan Thrall squat tutorial'"
-- Only mention real, well-known resources by NAME (not URL): "Duolingo app", "StrongLifts 5x5 app", "Jeff Nippard YouTube channel"
-- For books, just use the title and author: "Starting Strength by Mark Rippetoe"
-- For apps, just use the name: "Use the Headspace app for a guided 30-minute easy run"
+**CRITICAL - FREE RESOURCES ONLY:**
+- ONLY recommend FREE resources. NEVER suggest paid books, paid courses, or subscription apps.
+- Prioritize: YouTube tutorials, free apps, free websites, public library resources
+- FREE resources to recommend:
+  - YouTube channels: Search for specific tutorials (e.g., "Search YouTube for 'beginner guitar lesson Justin Guitar'")
+  - Free apps: Duolingo (free tier), Nike Run Club (free), StrongLifts 5x5 (free), Down Dog (free tier)
+  - Free websites: freeCodeCamp, Khan Academy, Coursera (audit mode), edX (audit mode)
+  - Bodyweight exercises that require no equipment
+- NEVER recommend: Paid books, Kindle books, Audible, paid apps, Masterclass, paid Udemy courses, subscription services (Headspace paid, etc.)
+- If mentioning a book, say "borrow from library" or "find free PDF/summary online"
+
+**CRITICAL - USE GOOGLE SEARCH LINKS:**
+- NEVER make up direct YouTube video URLs or article URLs (they will be broken)
+- Instead, provide a Google search link when referencing videos or articles
+- Format: https://www.google.com/search?q=YOUR+SEARCH+TERMS+HERE
+- Replace spaces with + signs in the search query
+- Example: "Watch a beginner guitar tutorial: https://www.google.com/search?q=beginner+guitar+lesson+justin+guitar+youtube"
+- Example: "Follow along with a yoga routine: https://www.google.com/search?q=20+minute+yoga+for+runners+youtube+free"
+- Always add "youtube" or "free" to the search query to prioritize free video content
+- For apps, just mention the app name (no link needed): "Use the Nike Run Club app"
 
 BAD EXAMPLES (NEVER DO THIS):
 - "Run 30 minutes at easy pace" on Monday, then "Run 35 minutes at easy pace" on Wednesday → WRONG (same type)
 - Same description used twice → WRONG
-- "Watch https://youtube.com/watch?v=abc123" → WRONG (fake URL)
+- "Watch https://youtube.com/watch?v=abc123" → WRONG (fake direct URL)
+- "Read Chapter 3 of Starting Strength book" → WRONG (paid book)
+- "Complete Headspace meditation course" → WRONG (paid subscription)
 
-GOOD EXAMPLES (varied training):
-- Monday: "Easy run: 3 miles at conversational pace (Zone 2 heart rate)"
+GOOD EXAMPLES (varied training with FREE resources and Google search links):
+- Monday: "Easy run: 3 miles at conversational pace using Nike Run Club app (free)"
 - Wednesday: "Interval workout: 6x400m at 5K pace with 200m walking recovery"
 - Friday: "Tempo run: 2 mile warm-up, 20 min at half-marathon pace, 1 mile cool-down"
 - Saturday: "Long run: 8 miles easy with last 2 miles at marathon pace"
-- Sunday: "Cross-training: 30 min swimming or cycling + 15 min yoga for runners"
+- Sunday: "Cross-training: Follow along with yoga https://www.google.com/search?q=20+min+yoga+for+runners+youtube+free"
+- Learning: "Complete 2 lessons on freeCodeCamp JavaScript course"
+- Guitar: "Learn basic chords: https://www.google.com/search?q=beginner+guitar+chords+tutorial+justin+guitar+youtube"
+- Language: "Practice 20 minutes on Duolingo (free tier) + watch a video: https://www.google.com/search?q=spanish+beginner+conversation+youtube"
 
 When creating plans:
 1. Break down the goal into progressive weekly milestones with clear success criteria
@@ -168,10 +187,11 @@ Generate a structured plan with specific tasks scheduled within the available ti
 4. **Progressive Difficulty:** Each week MUST be harder than the previous. Increase volume, intensity, complexity, or duration progressively.
 
 **SPECIFICITY REQUIREMENTS (MANDATORY):**
-- Task titles MUST include exact details: specific resources, quantities, page numbers, exercises
+- Task titles MUST include exact details: specific resources, quantities, exercises
 - Task descriptions should be 1-2 sentences max (KEEP IT CONCISE to avoid truncation)
 - NEVER use vague terms like "practice", "study", "work on" without exact specifics
-- Include real resource names: specific books, courses, apps, YouTube channels (by NAME, not URL)
+- ONLY recommend FREE resources: YouTube tutorials, free apps (Duolingo, Nike Run Club, freeCodeCamp), Khan Academy, library books
+- NEVER recommend paid books, paid courses, or subscription apps
 - Focus on ACTIONABLE details, not explanations
 
 Respond with JSON in this exact format:
@@ -184,7 +204,8 @@ Respond with JSON in this exact format:
       "tasks": [
         {
           "title": "Task title",
-          "description": "Brief task description",
+          "description": "Brief task description (do NOT include URLs here)",
+          "resourceUrl": "https://www.google.com/search?q=search+terms+youtube (optional, only if task needs a video/article)",
           "dayOfWeek": 1,
           "time": "09:00",
           "durationMinutes": 45,
@@ -194,6 +215,12 @@ Respond with JSON in this exact format:
     }
   ]
 }
+
+**IMPORTANT for resourceUrl:**
+- Put Google search links in "resourceUrl" field, NOT in description
+- Format: https://www.google.com/search?q=search+terms+here
+- Only include resourceUrl if the task benefits from a video/tutorial/article
+- Leave resourceUrl out (or null) for tasks that don't need external resources (e.g., "Run 3 miles")
 `;
 
   const prompt = `${SYSTEM_PROMPT}\n\n${userPrompt}`;
@@ -365,6 +392,7 @@ Respond with JSON in this exact format:
         {
           "title": "Task title",
           "description": "Brief task description",
+          "resourceUrl": "https://www.google.com/search?q=search+terms+youtube (optional)",
           "dayOfWeek": 1,
           "time": "09:00",
           "durationMinutes": 60,
