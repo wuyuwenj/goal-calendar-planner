@@ -1,13 +1,157 @@
-import { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Modal, ActivityIndicator } from 'react-native';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, ScrollView, FlatList, Pressable, StyleSheet, Modal, ActivityIndicator, NativeSyntheticEvent, NativeScrollEvent, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, Clock, X } from 'lucide-react-native';
-import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { ChevronLeft, ChevronRight, Clock, X, Trash2 } from 'lucide-react-native';
+import Animated, { FadeInUp, FadeInRight, FadeOutRight, useAnimatedStyle, useSharedValue, withSpring, Layout } from 'react-native-reanimated';
 import { StepIndicator } from '../../components/StepIndicator';
 import { Button } from '../../components/ui/Button';
 import { useGoalStore } from '../../store/goal';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
+
+const ITEM_HEIGHT = 50;
+const VISIBLE_ITEMS = 5;
+
+// Wheel Picker Component
+function WheelPicker({
+  options,
+  selectedValue,
+  onValueChange,
+  formatLabel,
+}: {
+  options: string[];
+  selectedValue: string;
+  onValueChange: (value: string) => void;
+  formatLabel: (value: string) => string;
+}) {
+  const flatListRef = useRef<FlatList>(null);
+  const [currentIndex, setCurrentIndex] = useState(options.indexOf(selectedValue));
+
+  const selectedIndex = options.indexOf(selectedValue);
+
+  useEffect(() => {
+    // Scroll to selected value on mount
+    if (flatListRef.current && selectedIndex >= 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: selectedIndex,
+          animated: false,
+        });
+        setCurrentIndex(selectedIndex);
+      }, 100);
+    }
+  }, [selectedIndex]);
+
+  const handleScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = event.nativeEvent.contentOffset.y;
+    const index = Math.round(y / ITEM_HEIGHT);
+    const clampedIndex = Math.max(0, Math.min(index, options.length - 1));
+
+    setCurrentIndex(clampedIndex);
+    if (options[clampedIndex] !== selectedValue) {
+      onValueChange(options[clampedIndex]);
+    }
+  }, [options, selectedValue, onValueChange]);
+
+  const handleViewableItemsChanged = useCallback(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      // Find the center item
+      const centerItem = viewableItems.find((item: any) => item.index !== null);
+      if (centerItem) {
+        setCurrentIndex(centerItem.index);
+      }
+    }
+  }, []);
+
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * index,
+    index,
+  }), []);
+
+  const renderItem = useCallback(({ item, index }: { item: string; index: number }) => {
+    const isCenter = index === currentIndex;
+    const distance = Math.abs(index - currentIndex);
+    const opacity = distance === 0 ? 1 : distance === 1 ? 0.5 : 0.3;
+
+    return (
+      <View style={[wheelStyles.item, { opacity }]}>
+        <Text style={[
+          wheelStyles.itemText,
+          isCenter && wheelStyles.itemTextSelected,
+        ]}>
+          {formatLabel(item)}
+        </Text>
+      </View>
+    );
+  }, [currentIndex, formatLabel]);
+
+  return (
+    <View style={wheelStyles.container}>
+      {/* Selection indicator - behind everything */}
+      <View style={wheelStyles.selectionIndicator} pointerEvents="none" />
+
+      <FlatList
+        ref={flatListRef}
+        data={options}
+        renderItem={renderItem}
+        keyExtractor={(item) => item}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_HEIGHT}
+        decelerationRate="fast"
+        getItemLayout={getItemLayout}
+        onMomentumScrollEnd={handleScrollEnd}
+        onScrollEndDrag={handleScrollEnd}
+        contentContainerStyle={{
+          paddingVertical: ITEM_HEIGHT * 2,
+        }}
+        initialScrollIndex={selectedIndex >= 0 ? selectedIndex : 0}
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({
+              index: info.index,
+              animated: false,
+            });
+          }, 100);
+        }}
+      />
+    </View>
+  );
+}
+
+const wheelStyles = StyleSheet.create({
+  container: {
+    height: ITEM_HEIGHT * VISIBLE_ITEMS,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: ITEM_HEIGHT * 2,
+    left: 0,
+    right: 0,
+    height: ITEM_HEIGHT,
+    backgroundColor: COLORS.primary.light,
+    borderRadius: RADIUS.md,
+    borderWidth: 2,
+    borderColor: COLORS.primary.mint,
+  },
+  item: {
+    height: ITEM_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  itemText: {
+    ...TYPOGRAPHY.body,
+    fontSize: 18,
+    color: COLORS.secondary.warm,
+  },
+  itemTextSelected: {
+    color: COLORS.primary.forest,
+    fontWeight: '700',
+    fontSize: 20,
+  },
+});
 
 // Days starting from Monday
 const DAYS = [
@@ -36,6 +180,13 @@ const formatTimeDisplay = (time: string): string => {
   const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   return `${displayHour}:${minute} ${period}`;
 };
+
+// Per-day availability type
+interface DayAvailability {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
 
 function DayPill({
   day,
@@ -85,16 +236,67 @@ function DayPill({
   );
 }
 
+// Component for each day's time row
+function DayTimeRow({
+  day,
+  availability,
+  onUpdateTime,
+  onRemove,
+}: {
+  day: { index: number; short: string; name: string };
+  availability: DayAvailability;
+  onUpdateTime: (field: 'startTime' | 'endTime') => void;
+  onRemove: () => void;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInRight.duration(300)}
+      exiting={FadeOutRight.duration(200)}
+      layout={Layout.springify()}
+      style={styles.dayTimeRow}
+    >
+      <View style={styles.dayTimeRowLeft}>
+        <Text style={styles.dayTimeRowName}>{day.name}</Text>
+      </View>
+      <View style={styles.dayTimeRowRight}>
+        <Pressable
+          style={styles.timeChip}
+          onPress={() => onUpdateTime('startTime')}
+        >
+          <Text style={styles.timeChipText}>{formatTimeDisplay(availability.startTime)}</Text>
+        </Pressable>
+        <Text style={styles.timeChipSeparator}>-</Text>
+        <Pressable
+          style={styles.timeChip}
+          onPress={() => onUpdateTime('endTime')}
+        >
+          <Text style={styles.timeChipText}>{formatTimeDisplay(availability.endTime)}</Text>
+        </Pressable>
+        <Pressable style={styles.removeButton} onPress={onRemove}>
+          <Trash2 size={18} color={COLORS.secondary.warm} />
+        </Pressable>
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function AvailabilityScreen() {
   const router = useRouter();
   const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
 
-  const [selectedDays, setSelectedDays] = useState<number[]>([1, 3, 5]); // Mon, Wed, Fri default
-  const [startTime, setStartTime] = useState('20:00');
-  const [endTime, setEndTime] = useState('21:00');
+  // Per-day availability state
+  const [dayAvailabilities, setDayAvailabilities] = useState<DayAvailability[]>([
+    { dayOfWeek: 1, startTime: '20:00', endTime: '21:00' }, // Monday
+    { dayOfWeek: 3, startTime: '20:00', endTime: '21:00' }, // Wednesday
+    { dayOfWeek: 5, startTime: '20:00', endTime: '21:00' }, // Friday
+  ]);
 
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [pickerTarget, setPickerTarget] = useState<'startTime' | 'endTime' | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<{
+    dayOfWeek: number;
+    field: 'startTime' | 'endTime';
+  } | null>(null);
+  const [pickerValue, setPickerValue] = useState('20:00');
 
   // Pending goal state
   const [pendingState, setPendingState] = useState<{
@@ -158,41 +360,65 @@ export default function AvailabilityScreen() {
     }, 10000);
   };
 
+  // Get selected day indices from availabilities
+  const selectedDays = dayAvailabilities.map(a => a.dayOfWeek);
+
   const toggleDay = (dayIndex: number) => {
-    setSelectedDays((prev) => {
-      if (prev.includes(dayIndex)) {
-        return prev.filter((d) => d !== dayIndex);
+    setDayAvailabilities((prev) => {
+      const existing = prev.find(a => a.dayOfWeek === dayIndex);
+      if (existing) {
+        // Remove the day
+        return prev.filter((a) => a.dayOfWeek !== dayIndex);
       } else {
-        return [...prev, dayIndex];
+        // Add with default time (8-9 PM)
+        return [...prev, { dayOfWeek: dayIndex, startTime: '20:00', endTime: '21:00' }];
       }
     });
   };
 
-  const openTimePicker = (field: 'startTime' | 'endTime') => {
-    setPickerTarget(field);
+  const removeDay = (dayIndex: number) => {
+    setDayAvailabilities((prev) => prev.filter((a) => a.dayOfWeek !== dayIndex));
+  };
+
+  const openTimePicker = (dayOfWeek: number, field: 'startTime' | 'endTime') => {
+    const dayAvail = dayAvailabilities.find(a => a.dayOfWeek === dayOfWeek);
+    if (dayAvail) {
+      setPickerValue(field === 'startTime' ? dayAvail.startTime : dayAvail.endTime);
+    }
+    setPickerTarget({ dayOfWeek, field });
     setPickerVisible(true);
   };
 
-  const selectTime = (time: string) => {
+  const confirmTimeSelection = () => {
     if (!pickerTarget) return;
 
-    if (pickerTarget === 'startTime') {
-      setStartTime(time);
-      if (time >= endTime) {
-        const timeIndex = TIME_OPTIONS.indexOf(time);
-        if (timeIndex < TIME_OPTIONS.length - 1) {
-          setEndTime(TIME_OPTIONS[timeIndex + 1]);
+    setDayAvailabilities((prev) => {
+      return prev.map((a) => {
+        if (a.dayOfWeek !== pickerTarget.dayOfWeek) return a;
+
+        if (pickerTarget.field === 'startTime') {
+          // If new start time >= end time, adjust end time
+          let newEndTime = a.endTime;
+          if (pickerValue >= a.endTime) {
+            const timeIndex = TIME_OPTIONS.indexOf(pickerValue);
+            if (timeIndex < TIME_OPTIONS.length - 1) {
+              newEndTime = TIME_OPTIONS[timeIndex + 1];
+            }
+          }
+          return { ...a, startTime: pickerValue, endTime: newEndTime };
+        } else {
+          // If new end time <= start time, adjust start time
+          let newStartTime = a.startTime;
+          if (pickerValue <= a.startTime) {
+            const timeIndex = TIME_OPTIONS.indexOf(pickerValue);
+            if (timeIndex > 0) {
+              newStartTime = TIME_OPTIONS[timeIndex - 1];
+            }
+          }
+          return { ...a, startTime: newStartTime, endTime: pickerValue };
         }
-      }
-    } else {
-      setEndTime(time);
-      if (time <= startTime) {
-        const timeIndex = TIME_OPTIONS.indexOf(time);
-        if (timeIndex > 0) {
-          setStartTime(TIME_OPTIONS[timeIndex - 1]);
-        }
-      }
-    }
+      });
+    });
 
     setPickerVisible(false);
     setPickerTarget(null);
@@ -203,11 +429,8 @@ export default function AvailabilityScreen() {
   };
 
   const handleCreate = async () => {
-    const availability = selectedDays.map((dayIndex) => ({
-      dayOfWeek: dayIndex,
-      startTime,
-      endTime,
-    }));
+    // Use the per-day availabilities directly
+    const availability = dayAvailabilities;
 
     setOnboardingData({ availability });
     setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
@@ -240,24 +463,29 @@ export default function AvailabilityScreen() {
     setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
   };
 
-  const canProceed = selectedDays.length > 0;
+  const canProceed = dayAvailabilities.length > 0;
 
   const getFilteredTimeOptions = () => {
     if (!pickerTarget) return TIME_OPTIONS;
 
-    if (pickerTarget === 'endTime') {
-      const startIndex = TIME_OPTIONS.indexOf(startTime);
+    const dayAvail = dayAvailabilities.find(a => a.dayOfWeek === pickerTarget.dayOfWeek);
+    if (!dayAvail) return TIME_OPTIONS;
+
+    if (pickerTarget.field === 'endTime') {
+      const startIndex = TIME_OPTIONS.indexOf(dayAvail.startTime);
       return TIME_OPTIONS.slice(startIndex + 1);
     } else {
-      const endIndex = TIME_OPTIONS.indexOf(endTime);
+      const endIndex = TIME_OPTIONS.indexOf(dayAvail.endTime);
       return TIME_OPTIONS.slice(0, endIndex);
     }
   };
 
-  const selectedDayNames = selectedDays
-    .map((i) => DAYS.find((d) => d.index === i)?.name)
-    .filter(Boolean)
-    .join(', ');
+  // Sort availabilities by day order (Monday first)
+  const sortedAvailabilities = [...dayAvailabilities].sort((a, b) => {
+    const orderA = DAYS.findIndex(d => d.index === a.dayOfWeek);
+    const orderB = DAYS.findIndex(d => d.index === b.dayOfWeek);
+    return orderA - orderB;
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -286,43 +514,35 @@ export default function AvailabilityScreen() {
                 />
               ))}
             </View>
-            {selectedDays.length > 0 && (
-              <Text style={styles.selectedDaysText}>
-                {selectedDayNames}
-              </Text>
-            )}
           </Animated.View>
 
-          {/* Time Range */}
-          <Animated.View entering={FadeInUp.delay(400).duration(500)} style={styles.timeSection}>
-            <Text style={styles.sectionLabel}>Preferred time</Text>
-            <View style={styles.timeRangeContainer}>
-              <Pressable
-                style={styles.timeButton}
-                onPress={() => openTimePicker('startTime')}
-              >
-                <Clock size={18} color={COLORS.primary.forest} />
-                <Text style={styles.timeButtonText}>{formatTimeDisplay(startTime)}</Text>
-              </Pressable>
-
-              <Text style={styles.timeSeparator}>to</Text>
-
-              <Pressable
-                style={styles.timeButton}
-                onPress={() => openTimePicker('endTime')}
-              >
-                <Clock size={18} color={COLORS.primary.forest} />
-                <Text style={styles.timeButtonText}>{formatTimeDisplay(endTime)}</Text>
-              </Pressable>
-            </View>
-          </Animated.View>
+          {/* Per-Day Time Rows */}
+          {sortedAvailabilities.length > 0 && (
+            <Animated.View entering={FadeInUp.delay(400).duration(500)} style={styles.timeSection}>
+              <Text style={styles.sectionLabel}>Set times for each day</Text>
+              <View style={styles.dayTimeRows}>
+                {sortedAvailabilities.map((avail) => {
+                  const day = DAYS.find(d => d.index === avail.dayOfWeek)!;
+                  return (
+                    <DayTimeRow
+                      key={avail.dayOfWeek}
+                      day={day}
+                      availability={avail}
+                      onUpdateTime={(field) => openTimePicker(avail.dayOfWeek, field)}
+                      onRemove={() => removeDay(avail.dayOfWeek)}
+                    />
+                  );
+                })}
+              </View>
+            </Animated.View>
+          )}
 
           {/* Summary Card */}
-          {selectedDays.length > 0 && (
+          {sortedAvailabilities.length > 0 && (
             <Animated.View entering={FadeInUp.delay(500).duration(500)} style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Your schedule</Text>
               <Text style={styles.summaryText}>
-                {selectedDays.length} day{selectedDays.length > 1 ? 's' : ''} per week, {formatTimeDisplay(startTime)} - {formatTimeDisplay(endTime)}
+                {sortedAvailabilities.length} day{sortedAvailabilities.length > 1 ? 's' : ''} per week
               </Text>
             </Animated.View>
           )}
@@ -361,34 +581,36 @@ export default function AvailabilityScreen() {
         onRequestClose={() => setPickerVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={styles.wheelModalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                Select {pickerTarget === 'startTime' ? 'Start' : 'End'} Time
-              </Text>
               <Pressable
                 onPress={() => setPickerVisible(false)}
-                style={styles.modalCloseButton}
+                style={styles.modalCancelButton}
               >
-                <X size={24} color={COLORS.secondary.bark} />
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Text style={styles.modalTitle}>
+                {pickerTarget?.field === 'startTime' ? 'Start' : 'End'} Time
+              </Text>
+              <Pressable
+                onPress={confirmTimeSelection}
+                style={styles.modalDoneButton}
+              >
+                <Text style={styles.modalDoneText}>Done</Text>
               </Pressable>
             </View>
-            <ScrollView style={styles.timeList}>
-              {getFilteredTimeOptions().map((time) => (
-                <Pressable
-                  key={time}
-                  style={({ pressed }) => [
-                    styles.timeOption,
-                    pressed && styles.timeOptionPressed,
-                  ]}
-                  onPress={() => selectTime(time)}
-                >
-                  <Text style={styles.timeOptionText}>
-                    {formatTimeDisplay(time)}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            <Text style={styles.modalSubtitle}>
+              {pickerTarget && DAYS.find(d => d.index === pickerTarget.dayOfWeek)?.name}
+            </Text>
+            <View style={styles.wheelContainer}>
+              <WheelPicker
+                key={`${pickerTarget?.dayOfWeek}-${pickerTarget?.field}`}
+                options={getFilteredTimeOptions()}
+                selectedValue={pickerValue}
+                onValueChange={setPickerValue}
+                formatLabel={formatTimeDisplay}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -499,6 +721,52 @@ const styles = StyleSheet.create({
   timeSection: {
     marginBottom: SPACING.xl,
   },
+  dayTimeRows: {
+    gap: SPACING.sm,
+  },
+  dayTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.secondary.cream,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+  },
+  dayTimeRowLeft: {
+    flex: 1,
+  },
+  dayTimeRowName: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.secondary.bark,
+  },
+  dayTimeRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  timeChip: {
+    backgroundColor: COLORS.primary.light,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.primary.mint,
+  },
+  timeChipText: {
+    ...TYPOGRAPHY.bodySmall,
+    fontWeight: '600',
+    color: COLORS.primary.forest,
+  },
+  timeChipSeparator: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.secondary.warm,
+  },
+  removeButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.xs,
+  },
   timeRangeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,11 +830,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  wheelModalContent: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    maxHeight: '60%',
+    paddingBottom: SPACING.xl,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -577,28 +845,34 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.secondary.sand,
   },
   modalTitle: {
-    ...TYPOGRAPHY.h3,
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
     color: COLORS.secondary.bark,
   },
-  modalCloseButton: {
+  modalSubtitle: {
+    ...TYPOGRAPHY.bodySmall,
+    color: COLORS.secondary.warm,
+    textAlign: 'center',
+    paddingTop: SPACING.sm,
+  },
+  modalCancelButton: {
     padding: SPACING.xs,
   },
-  timeList: {
-    padding: SPACING.sm,
-  },
-  timeOption: {
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.neutral[100],
-  },
-  timeOptionPressed: {
-    backgroundColor: COLORS.primary.light,
-  },
-  timeOptionText: {
+  modalCancelText: {
     ...TYPOGRAPHY.body,
-    color: COLORS.secondary.bark,
-    textAlign: 'center',
+    color: COLORS.secondary.warm,
+  },
+  modalDoneButton: {
+    padding: SPACING.xs,
+  },
+  modalDoneText: {
+    ...TYPOGRAPHY.body,
+    fontWeight: '600',
+    color: COLORS.primary.forest,
+  },
+  wheelContainer: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
   },
   pendingOverlay: {
     flex: 1,

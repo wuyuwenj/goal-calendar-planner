@@ -455,16 +455,28 @@ export function TaskDetailModal({
               </View>
             )}
             {isCompleted && !isMissed && (
-              <Button
-                onPress={() => {
-                  onToggleComplete();
-                  onClose();
-                }}
-                variant="secondary"
-                fullWidth
-              >
-                Mark as Incomplete
-              </Button>
+              <View style={styles.buttonRow}>
+                <Button
+                  onPress={() => {
+                    onToggleComplete();
+                    onClose();
+                  }}
+                  variant="secondary"
+                  fullWidth
+                >
+                  Mark as Incomplete
+                </Button>
+                <TouchableOpacity
+                  onPress={() => {
+                    onMarkMissed();
+                    onClose();
+                  }}
+                  style={styles.missedButton}
+                >
+                  <XCircle size={18} color={COLORS.system.error} />
+                  <Text style={styles.missedButtonText}>Mark as Missed</Text>
+                </TouchableOpacity>
+              </View>
             )}
             {isMissed && (
               <View style={styles.missedMessage}>

@@ -36,6 +36,7 @@ export const CheckInSchema = z.object({
     })
   ),
   notes: z.string().optional(),
+  adjustment: z.enum(['decrease', 'maintain', 'increase']).optional(),
 });
 
 export const UpdateProfileSchema = z.object({
