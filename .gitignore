@@ -13,8 +13,6 @@ build/
 
 # Mobile specific
 goal-planner-mobile/.expo/
-goal-planner-mobile/ios/
-goal-planner-mobile/android/
 *.jks
 *.p8
 *.p12
@@ -47,6 +45,3 @@ coverage/
 
 # Claude
 .claude/
-
-ios/
-android/
