@@ -120,6 +120,48 @@ If the retrieved knowledge above includes a PERIODIZATION section, you MUST foll
 Always respond with valid JSON matching the exact schema requested.`;
 
 /**
+ * Helper to calculate availability duration for a given day
+ */
+function getAvailabilityDuration(
+  availability: Array<{ dayOfWeek: number; startTime: string; endTime: string }>,
+  dayOfWeek: number
+): number {
+  const slot = availability.find(a => a.dayOfWeek === dayOfWeek);
+  if (!slot) return 60; // Default to 60 minutes if not found
+
+  const [startH, startM] = slot.startTime.split(':').map(Number);
+  const [endH, endM] = slot.endTime.split(':').map(Number);
+  return (endH * 60 + endM) - (startH * 60 + startM);
+}
+
+/**
+ * Post-process plan to enforce duration constraints
+ */
+function enforceTaskDurations(
+  plan: GeneratedPlan,
+  availability: Array<{ dayOfWeek: number; startTime: string; endTime: string }>
+): GeneratedPlan {
+  let adjusted = 0;
+
+  for (const week of plan.weeklyPlans) {
+    for (const task of week.tasks) {
+      const maxDuration = getAvailabilityDuration(availability, task.dayOfWeek);
+      if (task.durationMinutes > maxDuration) {
+        console.log(`AI: Capping task "${task.title}" duration from ${task.durationMinutes} to ${maxDuration} minutes`);
+        task.durationMinutes = maxDuration;
+        adjusted++;
+      }
+    }
+  }
+
+  if (adjusted > 0) {
+    console.log(`AI: Adjusted ${adjusted} task durations to fit availability windows`);
+  }
+
+  return plan;
+}
+
+/**
  * Generate an initial plan for a new goal
  */
 export async function generatePlan(
@@ -130,7 +172,13 @@ export async function generatePlan(
   const totalWeeks = Math.max(1, differenceInWeeks(targetDate, new Date()));
 
   const availabilityDescription = input.availability
-    .map((a) => `${getDayName(a.dayOfWeek)}: ${a.startTime} - ${a.endTime}`)
+    .map((a) => {
+      // Calculate duration in minutes
+      const [startH, startM] = a.startTime.split(':').map(Number);
+      const [endH, endM] = a.endTime.split(':').map(Number);
+      const durationMins = (endH * 60 + endM) - (startH * 60 + startM);
+      return `${getDayName(a.dayOfWeek)}: ${a.startTime} - ${a.endTime} (${durationMins} minutes available)`;
+    })
     .join('\n');
 
   // Retrieve relevant knowledge context (RAG)
@@ -181,10 +229,14 @@ ${availabilityDescription}
 Generate a structured plan with specific tasks scheduled within the available time slots.
 
 **CRITICAL SCHEDULING RULES:**
-1. **Adhere Strictly:** Only schedule tasks within the provided availability windows.
-2. **Break Down Long Slots:** If an available time slot is longer than 60 minutes, you MUST break it down into multiple distinct, smaller tasks (e.g., split a 2-hour block into two 50-minute tasks with different focuses) to maintain engagement. Do not schedule single tasks longer than 90 minutes.
-3. **Volume:** Create 1-2 tasks per available day. Match the number of tasks to the user's availability schedule.
-4. **Progressive Difficulty:** Each week MUST be harder than the previous. Increase volume, intensity, complexity, or duration progressively.
+1. **DURATION MUST FIT:** Each task's durationMinutes MUST be <= the available time for that day.
+   - If someone is available 20:00-20:30 (30 min), task duration MUST be 30 minutes or less.
+   - If someone is available 18:00-19:00 (60 min), task duration MUST be 60 minutes or less.
+   - NEVER create a 45-minute task for a 30-minute availability slot.
+2. **ONE TASK FOR SHORT SLOTS:** If the availability window is 45 minutes or less, schedule ONLY 1 task for that day.
+3. **Break Down Long Slots:** If an available time slot is longer than 90 minutes, you MAY split it into 2 tasks. Otherwise, keep it as a single focused task.
+4. **Task Time = Slot Start Time:** The task's "time" field should match the start of the availability window.
+5. **Progressive Difficulty:** Each week MUST be harder than the previous. Increase intensity, complexity, or quality of work - NOT necessarily duration if time is limited.
 
 **SPECIFICITY REQUIREMENTS (MANDATORY):**
 - Task titles MUST include exact details: specific resources, quantities, exercises
@@ -242,8 +294,10 @@ Respond with JSON in this exact format:
 
   try {
     console.log('AI: Parsing JSON...');
-    const plan = JSON.parse(jsonString.trim()) as GeneratedPlan;
+    let plan = JSON.parse(jsonString.trim()) as GeneratedPlan;
     console.log(`AI: Parsed plan with ${plan.weeklyPlans?.length || 0} weeks`);
+    // Enforce task durations fit within availability windows
+    plan = enforceTaskDurations(plan, input.availability);
     return plan;
   } catch (e) {
     console.error('Failed to parse AI response, attempting repair...');
@@ -252,8 +306,10 @@ Respond with JSON in this exact format:
     const repairedJson = repairTruncatedJson(jsonString.trim());
     if (repairedJson) {
       try {
-        const plan = JSON.parse(repairedJson) as GeneratedPlan;
+        let plan = JSON.parse(repairedJson) as GeneratedPlan;
         console.log('Successfully repaired and parsed JSON');
+        // Enforce task durations fit within availability windows
+        plan = enforceTaskDurations(plan, input.availability);
         return plan;
       } catch (e2) {
         console.error('Repair attempt also failed');
@@ -356,7 +412,12 @@ export async function regeneratePlan(
   userNotes?: string
 ): Promise<GeneratedPlan> {
   const availabilityDescription = availability
-    .map((a) => `${getDayName(a.dayOfWeek)}: ${a.startTime} - ${a.endTime}`)
+    .map((a) => {
+      const [startH, startM] = a.startTime.split(':').map(Number);
+      const [endH, endM] = a.endTime.split(':').map(Number);
+      const durationMins = (endH * 60 + endM) - (startH * 60 + startM);
+      return `${getDayName(a.dayOfWeek)}: ${a.startTime} - ${a.endTime} (${durationMins} minutes available)`;
+    })
     .join('\n');
 
   const userPrompt = `Adjust and regenerate the remaining plan for this goal based on last week's progress:
