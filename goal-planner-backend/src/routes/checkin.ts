@@ -2,9 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
 import { CheckInSchema } from '../types';
-import { regeneratePlan } from '../services/ai';
-import { syncTasksToCalendar, deleteCalendarEvents } from '../services/calendar';
-import { addDays, startOfWeek, addWeeks, differenceInWeeks } from 'date-fns';
+import { adjustPlanIntensity } from '../services/ai';
+import { differenceInWeeks } from 'date-fns';
 
 export async function checkinRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
@@ -99,6 +98,7 @@ export async function checkinRoutes(fastify: FastifyInstance) {
     }
 
     const input = parseResult.data;
+    const adjustment = input.adjustment || 'maintain';
 
     // Verify goal belongs to user
     const goal = await prisma.goal.findFirst({
@@ -140,145 +140,86 @@ export async function checkinRoutes(fastify: FastifyInstance) {
       },
     });
 
-    // Get profile for timezone and availability
-    const profile = await prisma.profile.findUnique({
-      where: { id: req.profileId },
-      include: { availability: true },
-    });
+    // Determine if we need to adjust the plan
+    const needsAdjustment = adjustment !== 'maintain' || (input.notes && input.notes.trim().length > 0);
 
-    if (!profile) {
-      return reply.status(404).send({ error: 'Profile not found' });
-    }
+    let adjustedCount = 0;
 
-    // Calculate remaining weeks
-    const remainingWeeks = Math.max(
-      1,
-      differenceInWeeks(goal.targetDate, new Date())
-    );
+    if (needsAdjustment && adjustment !== 'maintain') {
+      console.log(`Check-in: User requested ${adjustment} intensity adjustment`);
 
-    // Regenerate plan for remaining weeks
-    const newPlan = await regeneratePlan(
-      goal.title,
-      goal.description,
-      goal.currentLevel,
-      remainingWeeks,
-      completedTasks,
-      missedTasks,
-      profile.availability.map((a) => ({
-        dayOfWeek: a.dayOfWeek,
-        startTime: a.startTime,
-        endTime: a.endTime,
-      })),
-      profile.timezone,
-      input.notes
-    );
+      // Get current week tasks (for context)
+      const currentWeekTasks = await prisma.task.findMany({
+        where: {
+          goalId: goal.id,
+          weekNumber: input.weekNumber,
+        },
+        orderBy: [{ scheduledDate: 'asc' }, { scheduledTime: 'asc' }],
+      });
 
-    // Delete future tasks
-    const futureTasks = await prisma.task.findMany({
-      where: {
-        goalId: goal.id,
-        weekNumber: { gt: input.weekNumber },
-      },
-    });
+      // Get next week tasks only (to adjust)
+      const nextWeekTasks = await prisma.task.findMany({
+        where: {
+          goalId: goal.id,
+          weekNumber: input.weekNumber + 1,
+        },
+        orderBy: [{ scheduledDate: 'asc' }, { scheduledTime: 'asc' }],
+      });
 
-    // Delete from Google Calendar
-    if (goal.calendarId && profile.googleRefreshToken) {
-      const eventIds = futureTasks
-        .map((t) => t.googleEventId)
-        .filter((id): id is string => id !== null);
-
-      if (eventIds.length > 0) {
+      if (nextWeekTasks.length > 0) {
         try {
-          await deleteCalendarEvents(req.profileId, goal.calendarId, eventIds);
+          // Call AI to adjust next week's tasks, using current week as context
+          const adjustedTasks = await adjustPlanIntensity(
+            goal.title,
+            adjustment,
+            currentWeekTasks,
+            nextWeekTasks,
+            input.notes
+          );
+
+          // Update tasks with adjusted values
+          for (const adjusted of adjustedTasks) {
+            await prisma.task.update({
+              where: { id: adjusted.id },
+              data: {
+                title: adjusted.title,
+                description: adjusted.description,
+                durationMinutes: adjusted.durationMinutes,
+              },
+            });
+            adjustedCount++;
+          }
+
+          console.log(`Check-in: Successfully adjusted ${adjustedCount} next week tasks`);
         } catch (error) {
-          console.warn('Failed to delete calendar events:', error);
+          console.error('Failed to adjust plan intensity:', error);
+          // Continue without adjustment - don't fail the check-in
         }
+      } else {
+        console.log('Check-in: No next week tasks to adjust');
       }
+    } else {
+      console.log('Check-in: No adjustment needed (maintain + no notes)');
     }
 
-    // Delete from database
-    await prisma.task.deleteMany({
-      where: {
-        goalId: goal.id,
-        weekNumber: { gt: input.weekNumber },
-      },
-    });
-
-    // Create new tasks
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-    const newTasks: Array<{
-      id: string;
-      title: string;
-      description: string;
-      scheduledDate: Date;
-      scheduledTime: string;
-      durationMinutes: number;
-    }> = [];
-
-    for (const week of newPlan.weeklyPlans) {
-      for (const task of week.tasks) {
-        const taskDate = addDays(addWeeks(weekStart, week.weekNumber), task.dayOfWeek);
-
-        const createdTask = await prisma.task.create({
-          data: {
-            goalId: goal.id,
-            title: task.title,
-            description: task.description,
-            scheduledDate: taskDate,
-            scheduledTime: task.time,
-            durationMinutes: task.durationMinutes,
-            weekNumber: input.weekNumber + week.weekNumber,
-          },
-        });
-
-        newTasks.push({
-          id: createdTask.id,
-          title: task.title,
-          description: task.description,
-          scheduledDate: taskDate,
-          scheduledTime: task.time,
-          durationMinutes: task.durationMinutes,
-        });
-      }
-    }
-
-    // Sync to Google Calendar
-    if (goal.calendarId && profile.googleRefreshToken) {
-      try {
-        const eventIdMap = await syncTasksToCalendar(
-          req.profileId,
-          goal.calendarId,
-          newTasks,
-          profile.timezone
-        );
-
-        for (const [taskId, eventId] of eventIdMap) {
-          await prisma.task.update({
-            where: { id: taskId },
-            data: { googleEventId: eventId },
-          });
-        }
-      } catch (error) {
-        console.warn('Failed to sync to Google Calendar:', error);
-      }
-    }
-
-    // Update check-in with adjustments info
+    // Update check-in with adjustment info
     await prisma.checkIn.update({
       where: { id: checkIn.id },
       data: {
         adjustments: JSON.stringify({
-          tasksRescheduled: newTasks.length,
-          weeklyPlans: newPlan.weeklyPlans.map((w) => w.focus),
+          type: adjustment,
+          tasksAdjusted: adjustedCount,
         }),
       },
     });
 
     return {
       checkIn,
-      adjustedPlan: newPlan,
-      newTasksCount: newTasks.length,
-      message: 'Check-in complete, plan adjusted for remaining weeks',
+      adjustment,
+      tasksAdjusted: adjustedCount,
+      message: adjustedCount > 0
+        ? `Check-in complete! Adjusted ${adjustedCount} future tasks.`
+        : 'Check-in complete!',
     };
   });
 }

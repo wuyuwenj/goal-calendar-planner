@@ -483,3 +483,132 @@ Respond with a JSON array of suggestion strings:
     return ['Keep up the good work!', 'Try to maintain consistency.', 'Review your progress weekly.'];
   }
 }
+
+/**
+ * Adjust intensity of existing tasks without regenerating the entire plan
+ */
+export interface ExistingTask {
+  id: string;
+  title: string;
+  description: string | null;
+  scheduledDate: Date;
+  scheduledTime: string;
+  durationMinutes: number;
+  weekNumber: number;
+}
+
+export interface AdjustedTask {
+  id: string;
+  title: string;
+  description: string;
+  durationMinutes: number;
+}
+
+export async function adjustPlanIntensity(
+  goalTitle: string,
+  adjustment: 'decrease' | 'increase',
+  currentWeekTasks: ExistingTask[],
+  nextWeekTasks: ExistingTask[],
+  userNotes?: string
+): Promise<AdjustedTask[]> {
+  const adjustmentDescription = adjustment === 'decrease'
+    ? 'REDUCE the intensity/difficulty by about 20%. Make tasks easier, shorter, or less demanding.'
+    : 'INCREASE the intensity/difficulty by about 20%. Make tasks more challenging, longer, or more demanding.';
+
+  // Current week tasks as context (read-only)
+  const currentWeekJson = currentWeekTasks.map(t => ({
+    title: t.title,
+    description: t.description || '',
+    durationMinutes: t.durationMinutes,
+  }));
+
+  // Next week tasks to adjust
+  const nextWeekJson = nextWeekTasks.map(t => ({
+    id: t.id,
+    title: t.title,
+    description: t.description || '',
+    durationMinutes: t.durationMinutes,
+  }));
+
+  const userPrompt = `You are adjusting the intensity of next week's tasks based on how this week went.
+
+**Goal:** ${goalTitle}
+**Adjustment requested:** ${adjustment.toUpperCase()}
+
+**Instructions:** ${adjustmentDescription}
+${userNotes ? `
+---
+
+**USER'S NOTES (IMPORTANT - consider this feedback when adjusting):**
+"${userNotes}"
+
+Pay attention to what the user said - if they mentioned specific struggles, time constraints, or preferences, incorporate that into your adjustments.
+` : ''}
+
+---
+
+**THIS WEEK'S TASKS (for context - shows current intensity level):**
+${JSON.stringify(currentWeekJson, null, 2)}
+
+---
+
+**NEXT WEEK'S TASKS TO ADJUST:**
+${JSON.stringify(nextWeekJson, null, 2)}
+
+---
+
+**Examples of adjustments:**
+For DECREASE (make ~20% easier):
+- "Run 5 miles at tempo pace" → "Run 4 miles at easy pace"
+- "Complete 50 flashcards" → "Complete 35 flashcards"
+- "Practice guitar for 45 min" → "Practice guitar for 30 min"
+- Duration: 60 min → 45 min
+
+For INCREASE (make ~20% harder):
+- "Run 3 miles easy" → "Run 4 miles with 2 at tempo"
+- "Learn 20 vocabulary words" → "Learn 30 vocabulary words"
+- "Practice scales for 20 min" → "Practice scales and a song for 30 min"
+- Duration: 30 min → 40 min
+
+**RESPOND WITH ADJUSTED NEXT WEEK TASKS ONLY:**
+[
+  {
+    "id": "original-task-id-here",
+    "title": "Adjusted task title with new intensity",
+    "description": "Adjusted description",
+    "durationMinutes": 45
+  }
+]
+
+IMPORTANT:
+- Use this week's tasks as reference for current intensity
+- Only adjust NEXT week's tasks
+- Keep the same "id" for each task
+- Adjust title to reflect new intensity
+- Adjust durationMinutes appropriately (${adjustment === 'decrease' ? 'reduce by ~15-25%' : 'increase by ~15-25%'})
+- Keep the same general activity type, just adjust the intensity`;
+
+  console.log(`AI: Adjusting ${nextWeekTasks.length} next week tasks (${adjustment}), using ${currentWeekTasks.length} current week tasks as context...`);
+  const result = await generateWithRetry(userPrompt);
+  const response = result.response;
+  const text = response.text();
+
+  if (!text) {
+    throw new Error('Empty response from AI when adjusting plan');
+  }
+
+  let jsonString = text;
+  const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonMatch) {
+    jsonString = jsonMatch[1];
+  }
+
+  try {
+    const adjustedTasks = JSON.parse(jsonString.trim()) as AdjustedTask[];
+    console.log(`AI: Successfully adjusted ${adjustedTasks.length} tasks`);
+    return adjustedTasks;
+  } catch (e) {
+    console.error('Failed to parse adjusted tasks:', text);
+    throw new Error('Failed to parse adjusted tasks from AI');
+  }
+}
