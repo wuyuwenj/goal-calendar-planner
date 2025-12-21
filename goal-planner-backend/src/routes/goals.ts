@@ -72,6 +72,37 @@ export async function goalRoutes(fastify: FastifyInstance) {
     return { goal, progress };
   });
 
+  // Get goal creation quota
+  fastify.get('/quota', async (request) => {
+    const req = request as AuthenticatedRequest;
+    const DAILY_LIMIT = 2;
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const recentCreations = await prisma.usageLog.findMany({
+      where: {
+        profileId: req.profileId,
+        action: 'goal_create',
+        createdAt: { gte: oneDayAgo }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    const remaining = Math.max(0, DAILY_LIMIT - recentCreations.length);
+    let resetsAt: string | null = null;
+
+    if (recentCreations.length > 0 && remaining === 0) {
+      const oldestCreation = recentCreations[0];
+      resetsAt = new Date(oldestCreation.createdAt.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    return {
+      limit: DAILY_LIMIT,
+      remaining,
+      used: recentCreations.length,
+      resetsAt
+    };
+  });
+
   // Create new goal
   fastify.post('/', async (request, reply) => {
     const req = request as AuthenticatedRequest;
@@ -82,6 +113,33 @@ export async function goalRoutes(fastify: FastifyInstance) {
     }
 
     const input = parseResult.data;
+
+    // Rate limit check: 2 goals per 24 hours (sliding window)
+    const DAILY_LIMIT = 2;
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const recentCreations = await prisma.usageLog.findMany({
+      where: {
+        profileId: req.profileId,
+        action: 'goal_create',
+        createdAt: { gte: oneDayAgo }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    if (recentCreations.length >= DAILY_LIMIT) {
+      const oldestCreation = recentCreations[0];
+      const resetsAt = new Date(oldestCreation.createdAt.getTime() + 24 * 60 * 60 * 1000);
+
+      return reply.status(429).send({
+        error: 'Daily goal creation limit reached',
+        code: 'DAILY_LIMIT_REACHED',
+        message: `You can only create ${DAILY_LIMIT} goals per day. Try again later.`,
+        limit: DAILY_LIMIT,
+        remaining: 0,
+        resetsAt: resetsAt.toISOString()
+      });
+    }
 
     try {
       console.log('Route: Creating goal with plan...');
@@ -97,6 +155,14 @@ export async function goalRoutes(fastify: FastifyInstance) {
         },
       });
       console.log(`Route: Sending response (goal: ${goal?.id}, tasks: ${goal?.tasks?.length})...`);
+
+      // Log successful goal creation for rate limiting
+      await prisma.usageLog.create({
+        data: {
+          profileId: req.profileId,
+          action: 'goal_create'
+        }
+      });
 
       // Return simplified response (tasks are already in goal.tasks)
       const response = {

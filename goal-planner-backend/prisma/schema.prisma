@@ -103,3 +103,13 @@ model PendingGoal {
 
   @@map("pending_goals")
 }
+
+model UsageLog {
+  id        String   @id @default(uuid())
+  profileId String   @map("profile_id")
+  action    String   // "goal_create"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([profileId, action, createdAt])
+  @@map("usage_logs")
+}

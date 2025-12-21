@@ -450,6 +450,18 @@ export default function AvailabilityScreen() {
       console.error('Failed to create goal:', error);
       if (error.pending && error.pendingId) {
         startPolling(error.pendingId);
+      } else if (error.code === 'DAILY_LIMIT_REACHED') {
+        // Handle rate limit error with reset time
+        let errorMessage = 'You\'ve reached your daily limit of 2 goals.';
+        if (error.resetsAt) {
+          const resetDate = new Date(error.resetsAt);
+          const hoursUntilReset = Math.ceil((resetDate.getTime() - Date.now()) / (1000 * 60 * 60));
+          errorMessage += ` Try again in ${hoursUntilReset} hour${hoursUntilReset !== 1 ? 's' : ''}.`;
+        }
+        setPendingState((prev) => ({
+          ...prev,
+          error: errorMessage,
+        }));
       } else {
         setPendingState((prev) => ({
           ...prev,

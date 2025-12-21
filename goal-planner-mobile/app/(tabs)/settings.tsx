@@ -122,7 +122,7 @@ export default function SettingsScreen() {
 
     Alert.alert(
       'Delete Goal',
-      `Are you sure you want to delete "${currentGoal.title}"? This will also delete all associated Google Calendar events. This action cannot be undone.`,
+      `Are you sure you want to delete "${currentGoal.title}"?\n\nYou can only create 2 goals per day. If you delete this goal, you may not be able to create a new one until tomorrow.\n\nThis will also delete all Google Calendar events. This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
