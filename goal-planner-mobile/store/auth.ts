@@ -1,8 +1,10 @@
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { apiClient } from '../lib/api';
 import type { User } from '../types';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Localization from 'expo-localization';
 
@@ -17,6 +19,7 @@ interface AuthState {
 
   initialize: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signInWithCalendarAccess: () => Promise<boolean>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -178,6 +181,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err: any) {
       console.error('Sign in error:', err);
       set({ error: err.message || 'Failed to sign in' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  signInWithApple: async () => {
+    // Only available on iOS
+    if (Platform.OS !== 'ios') {
+      set({ error: 'Sign in with Apple is only available on iOS' });
+      return;
+    }
+
+    // Prevent multiple simultaneous auth attempts
+    if (get().isLoading) return;
+    set({ isLoading: true, error: null });
+
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error('No identity token received from Apple');
+      }
+
+      // Sign in with Supabase using the Apple ID token
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+
+      if (error) throw error;
+
+      // Apple only returns name on first sign-in, so we need to update it
+      if (credential.fullName?.givenName || credential.fullName?.familyName) {
+        const fullName = [
+          credential.fullName?.givenName,
+          credential.fullName?.familyName,
+        ].filter(Boolean).join(' ');
+
+        if (fullName) {
+          await supabase.auth.updateUser({
+            data: { full_name: fullName },
+          });
+        }
+      }
+
+      console.log('Apple sign in successful');
+    } catch (err: any) {
+      // Don't show error if user cancelled
+      if (err.code === 'ERR_REQUEST_CANCELED') {
+        console.log('User cancelled Apple sign in');
+        set({ isLoading: false });
+        return;
+      }
+      console.error('Apple sign in error:', err);
+      set({ error: err.message || 'Failed to sign in with Apple' });
     } finally {
       set({ isLoading: false });
     }

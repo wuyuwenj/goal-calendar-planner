@@ -1,19 +1,20 @@
-import React, { ReactNode } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { ReactNode, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Sprout, Sparkles, Calendar, TreeDeciduous } from 'lucide-react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { TrellisIcon } from '../../components/TrellisIcon';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { useAuthStore } from '../../store/auth';
 import { COLORS } from '../../constants/theme';
-import { useEffect } from 'react';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signInWithGoogle, isAuthenticated, isLoading, error, clearError } =
+  const { signInWithGoogle, signInWithApple, isAuthenticated, isLoading, error, clearError } =
     useAuthStore();
+  const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -21,9 +22,21 @@ export default function LoginScreen() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    // Check if Apple Authentication is available (iOS 13+)
+    if (Platform.OS === 'ios') {
+      AppleAuthentication.isAvailableAsync().then(setAppleAuthAvailable);
+    }
+  }, []);
+
   const handleGoogleSignIn = async () => {
     clearError();
     await signInWithGoogle();
+  };
+
+  const handleAppleSignIn = async () => {
+    clearError();
+    await signInWithApple();
   };
 
   return (
@@ -71,7 +84,16 @@ export default function LoginScreen() {
               <Text style={styles.errorText}>{error}</Text>
             </Card>
           )}
-          <Button onPress={handleGoogleSignIn} loading={isLoading}>
+          {appleAuthAvailable && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={12}
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+            />
+          )}
+          <Button onPress={handleGoogleSignIn} loading={isLoading} variant="secondary">
             Continue with Google
           </Button>
           <Text style={styles.disclaimer}>
@@ -172,6 +194,10 @@ const styles = StyleSheet.create({
   },
   signInSection: {
     gap: 16,
+  },
+  appleButton: {
+    width: '100%',
+    height: 50,
   },
   errorCard: {
     marginBottom: 8,
