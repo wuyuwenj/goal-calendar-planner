@@ -2,6 +2,7 @@ import "../global.css";
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SuperwallProvider } from 'expo-superwall';
 import { useAuthStore } from '../store/auth';
 
 export default function RootLayout() {
@@ -12,7 +13,11 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <SuperwallProvider
+      apiKeys={{
+        ios: "pk_FAx9e-d6O32Ee-uIf41-N",
+      }}
+    >
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
@@ -20,6 +25,6 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="checkin" />
       </Stack>
-    </>
+    </SuperwallProvider>
   );
 }
