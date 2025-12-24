@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { StepIndicator } from '../../components/StepIndicator';
 import { Input } from '../../components/ui/Input';
@@ -11,15 +11,9 @@ import { useGoalStore } from '../../store/goal';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
 
 const LEVEL_PLACEHOLDERS: Record<string, string> = {
-  some_experience: 'e.g., I tried learning guitar a few years ago but stopped after a month...',
-  intermediate: 'e.g., I play guitar regularly and know basic chords, but want to learn fingerpicking...',
-  advanced: 'e.g., I\'ve been playing for 5 years and can play most songs, but want to master jazz improvisation...',
-};
-
-const LEVEL_PROMPTS: Record<string, string> = {
-  some_experience: 'What have you tried before? What stopped you from continuing?',
-  intermediate: 'What do you already know? What specific areas do you want to improve?',
-  advanced: 'What\'s your current skill level? What mastery looks like for you?',
+  some_experience: 'e.g., current level, what you\'ve tried before, specific goals...',
+  intermediate: 'e.g., what you already know, areas to improve, target outcomes...',
+  advanced: 'e.g., current abilities, what mastery looks like for you...',
 };
 
 export default function LevelDetailsScreen() {
@@ -30,16 +24,18 @@ export default function LevelDetailsScreen() {
   const level = onboardingData.currentLevel || 'some_experience';
   const goalTitle = onboardingData.title || 'this goal';
   const placeholder = LEVEL_PLACEHOLDERS[level] || LEVEL_PLACEHOLDERS.some_experience;
-  const prompt = LEVEL_PROMPTS[level] || LEVEL_PROMPTS.some_experience;
-
-  const canProceed = details.trim().length >= 10;
 
   const handleBack = () => {
     router.back();
   };
 
+  const handleSkip = () => {
+    setOnboardingData({ levelDetails: '' });
+    router.push('/onboarding/timeline');
+  };
+
   const handleNext = () => {
-    setOnboardingData({ levelDetails: details });
+    setOnboardingData({ levelDetails: details.trim() });
     router.push('/onboarding/timeline');
   };
 
@@ -55,10 +51,10 @@ export default function LevelDetailsScreen() {
 
           <Animated.View entering={FadeInUp.delay(100).duration(500)} style={styles.header}>
             <Text style={styles.title}>
-              Tell us about your experience
+              Help us personalize your plan
             </Text>
             <Text style={styles.subtitle}>
-              {prompt}
+              Share any details that might help us create the perfect plan for you
             </Text>
           </Animated.View>
 
@@ -69,15 +65,20 @@ export default function LevelDetailsScreen() {
 
           <Animated.View entering={FadeInUp.delay(300).duration(500)}>
             <Input
+              label="Tell us more (optional)"
               value={details}
               onChangeText={setDetails}
               placeholder={placeholder}
               multiline
-              numberOfLines={6}
+              numberOfLines={5}
               style={styles.input}
             />
-            <Text style={styles.hint}>
-              The more detail you provide, the better we can personalize your plan
+          </Animated.View>
+
+          <Animated.View entering={FadeInUp.delay(400).duration(500)} style={styles.benefitCard}>
+            <Sparkles size={20} color={COLORS.primary.forest} />
+            <Text style={styles.benefitText}>
+              The more you share, the better we can tailor your weekly tasks
             </Text>
           </Animated.View>
         </View>
@@ -95,15 +96,26 @@ export default function LevelDetailsScreen() {
             Back
           </Button>
         </View>
-        <View style={styles.nextButtonWrapper}>
-          <Button
-            onPress={handleNext}
-            disabled={!canProceed}
-            icon={<ChevronRight size={20} color={COLORS.white} />}
-          >
-            Continue
-          </Button>
-        </View>
+        {details.trim().length === 0 ? (
+          <View style={styles.nextButtonWrapper}>
+            <Button
+              variant="secondary"
+              onPress={handleSkip}
+              icon={<ChevronRight size={20} color={COLORS.secondary.bark} />}
+            >
+              Skip
+            </Button>
+          </View>
+        ) : (
+          <View style={styles.nextButtonWrapper}>
+            <Button
+              onPress={handleNext}
+              icon={<ChevronRight size={20} color={COLORS.white} />}
+            >
+              Continue
+            </Button>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -151,14 +163,23 @@ const styles = StyleSheet.create({
     color: COLORS.primary.forest,
   },
   input: {
-    minHeight: 150,
+    minHeight: 120,
     textAlignVertical: 'top',
   },
-  hint: {
+  benefitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.primary.light,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
+  },
+  benefitText: {
     ...TYPOGRAPHY.bodySmall,
-    color: COLORS.secondary.warm,
-    marginTop: SPACING.sm,
-    fontStyle: 'italic',
+    color: COLORS.primary.forest,
+    flex: 1,
+    lineHeight: 20,
   },
   footer: {
     flexDirection: 'row',
