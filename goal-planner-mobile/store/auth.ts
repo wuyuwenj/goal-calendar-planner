@@ -7,8 +7,41 @@ import * as WebBrowser from 'expo-web-browser';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as Localization from 'expo-localization';
+import { useGoalStore } from './goal';
 
 WebBrowser.maybeCompleteAuthSession();
+
+// Conditionally import Superwall for identify
+let Superwall: any = null;
+try {
+  Superwall = require('expo-superwall').default;
+} catch {
+  // Superwall not available (Expo Go)
+}
+
+// Helper to identify user with Superwall
+const identifyWithSuperwall = (userId: string) => {
+  if (Superwall) {
+    try {
+      Superwall.identify(userId);
+      console.log('Superwall: Identified user', userId);
+    } catch (err) {
+      console.warn('Superwall identify failed:', err);
+    }
+  }
+};
+
+// Helper to reset Superwall identity on logout
+const resetSuperwallIdentity = () => {
+  if (Superwall) {
+    try {
+      Superwall.reset();
+      console.log('Superwall: Reset identity');
+    } catch (err) {
+      console.warn('Superwall reset failed:', err);
+    }
+  }
+};
 
 interface AuthState {
   user: User | null;
@@ -20,6 +53,7 @@ interface AuthState {
   initialize: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signInWithCalendarAccess: () => Promise<boolean>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -46,6 +80,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (session) {
         set({ session, isAuthenticated: true });
+        // Identify user with Superwall for webhook tracking
+        identifyWithSuperwall(session.user.id);
         await get().fetchProfile();
       }
     } catch (error) {
@@ -59,6 +95,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Auth state change:', event);
 
       if (event === 'SIGNED_OUT') {
+        // Reset Superwall identity on logout
+        resetSuperwallIdentity();
+        // Reset goal store to clear cached data
+        useGoalStore.getState().reset();
         set({
           session: null,
           isAuthenticated: false,
@@ -72,6 +112,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ session, isAuthenticated: !!session });
 
       if (session && event === 'SIGNED_IN') {
+        // Identify user with Superwall for webhook tracking
+        identifyWithSuperwall(session.user.id);
         await get().fetchProfile();
       }
     });
@@ -246,6 +288,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  signInWithEmail: async (email: string, password: string) => {
+    // Prevent multiple simultaneous auth attempts
+    if (get().isLoading) return;
+    set({ isLoading: true, error: null });
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      console.log('Email sign in successful');
+    } catch (err: any) {
+      console.error('Email sign in error:', err);
+      set({ error: err.message || 'Failed to sign in' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
   signInWithCalendarAccess: async () => {
     if (get().isLoading) return false;
     set({ isLoading: true, error: null });
@@ -292,6 +356,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     set({ isLoading: true });
     try {
+      // Reset Superwall identity
+      resetSuperwallIdentity();
+      // Reset goal store to clear cached data
+      useGoalStore.getState().reset();
       await supabase.auth.signOut();
       set({
         user: null,
@@ -302,6 +370,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       console.error('Sign out error:', error);
       // Still clear local state even if signOut fails
+      resetSuperwallIdentity();
+      useGoalStore.getState().reset();
       set({
         user: null,
         session: null,

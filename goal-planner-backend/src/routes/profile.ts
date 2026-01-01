@@ -30,6 +30,17 @@ export async function profileRoutes(fastify: FastifyInstance) {
       return { error: 'Profile not found' };
     }
 
+    // Calculate effective subscription status
+    const now = new Date();
+    const tier = profile.subscriptionTier || 'free';
+
+    // Free = blocked, Premium = check expiration
+    const isExpired = tier === 'free' ||
+                      (tier === 'premium' &&
+                       !!profile.subscriptionExpiresAt &&
+                       profile.subscriptionExpiresAt < now);
+    const effectiveTier = isExpired ? 'expired' : tier;
+
     return {
       id: profile.id,
       email: profile.email,
@@ -39,6 +50,14 @@ export async function profileRoutes(fastify: FastifyInstance) {
       availability: profile.availability,
       activeGoals: profile.goals.length,
       createdAt: profile.createdAt,
+      // Subscription info
+      subscription: {
+        tier: effectiveTier,
+        isActive: !isExpired,
+        isPremium: effectiveTier === 'premium',
+        productId: profile.subscriptionProductId,
+        expiresAt: profile.subscriptionExpiresAt?.toISOString() || null,
+      }
     };
   });
 
@@ -100,6 +119,88 @@ export async function profileRoutes(fastify: FastifyInstance) {
     });
 
     return { availability: updated };
+  });
+
+  // Update subscription status (called after Apple IAP purchase)
+  fastify.post('/subscription', async (request, reply) => {
+    const req = request as AuthenticatedRequest;
+    const {
+      tier,
+      productId,
+      transactionId,
+      expiresAt,
+    } = request.body as {
+      tier: 'free' | 'premium';
+      productId?: string;
+      transactionId?: string;
+      expiresAt?: string;
+    };
+
+    if (!tier || !['free', 'premium'].includes(tier)) {
+      return reply.status(400).send({ error: 'Invalid subscription tier. Must be "free" or "premium"' });
+    }
+
+    const updateData: any = {
+      subscriptionTier: tier,
+      subscriptionProductId: productId || null,
+      originalTransactionId: transactionId || null,
+    };
+
+    // Set expiration date
+    if (expiresAt) {
+      updateData.subscriptionExpiresAt = new Date(expiresAt);
+    }
+
+    const updatedProfile = await prisma.profile.update({
+      where: { id: req.profileId },
+      data: updateData,
+      select: {
+        subscriptionTier: true,
+        subscriptionProductId: true,
+        subscriptionExpiresAt: true,
+      }
+    });
+
+    return {
+      success: true,
+      subscription: updatedProfile
+    };
+  });
+
+  // Get subscription status
+  fastify.get('/subscription', async (request) => {
+    const req = request as AuthenticatedRequest;
+
+    const profile = await prisma.profile.findUnique({
+      where: { id: req.profileId },
+      select: {
+        subscriptionTier: true,
+        subscriptionProductId: true,
+        subscriptionExpiresAt: true,
+      }
+    });
+
+    if (!profile) {
+      return { tier: 'free', isActive: false, isPremium: false };
+    }
+
+    const now = new Date();
+    const tier = profile.subscriptionTier || 'free';
+
+    // Free = blocked, Premium = check expiration
+    const isExpired = tier === 'free' ||
+                      (tier === 'premium' &&
+                       !!profile.subscriptionExpiresAt &&
+                       profile.subscriptionExpiresAt < now);
+    const effectiveTier = isExpired ? 'expired' : tier;
+
+    return {
+      tier: effectiveTier,
+      isActive: !isExpired,
+      isPremium: effectiveTier === 'premium',
+      productId: profile.subscriptionProductId,
+      expiresAt: profile.subscriptionExpiresAt?.toISOString() || null,
+    };
   });
 
   // Delete account

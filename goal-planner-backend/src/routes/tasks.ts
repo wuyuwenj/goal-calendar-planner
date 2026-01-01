@@ -1,12 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { authMiddleware, requireActiveSubscription, AuthenticatedRequest } from '../middleware/auth';
 import { UpdateTaskSchema } from '../types';
 import { getUpcomingTasks, markOverdueTasks } from '../services/planner';
 
 export async function taskRoutes(fastify: FastifyInstance) {
   // Apply auth to all routes
   fastify.addHook('preHandler', authMiddleware);
+  // Block expired subscriptions
+  fastify.addHook('preHandler', requireActiveSubscription);
 
   // Get all upcoming tasks across all goals
   fastify.get('/upcoming', async (request) => {

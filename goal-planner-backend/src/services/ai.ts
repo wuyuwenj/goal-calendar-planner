@@ -1,6 +1,6 @@
 import { generateWithRetry } from '../lib/gemini';
 import { GeneratedPlan, CreateGoalInput } from '../types';
-import { differenceInWeeks } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 import { getDayName } from '../utils/time';
 import { retrieveGoalContext } from './knowledge';
 
@@ -169,7 +169,9 @@ export async function generatePlan(
   timezone: string
 ): Promise<GeneratedPlan> {
   const targetDate = new Date(input.targetDate);
-  const totalWeeks = Math.max(1, differenceInWeeks(targetDate, new Date()));
+  // Use ceiling of days/7 to ensure tasks cover the entire period until target date
+  const daysDiff = differenceInDays(targetDate, new Date());
+  const totalWeeks = Math.max(1, Math.ceil(daysDiff / 7));
 
   const availabilityDescription = input.availability
     .map((a) => {
@@ -213,18 +215,21 @@ IMPORTANT: Use the retrieved knowledge above to inform your plan. Include the sp
 **Goal:** ${input.title}
 ${input.description ? `**Details:** ${input.description}` : ''}
 **Current Level:** ${input.currentLevel.replace('_', ' ')}
-**Target Date:** ${targetDate.toDateString()}
+**Target Date:** ${targetDate.toDateString()} (${daysDiff} days from now)
 **Timezone:** ${timezone}
 
 **Available Time Slots:**
 ${availabilityDescription}
+
+**CRITICAL - FULL COVERAGE UNTIL TARGET DATE:**
+You MUST schedule tasks for ALL ${totalWeeks} weeks. The final week (week ${totalWeeks}) may be a partial week - still include tasks for all available days in that week that fall before or on the target date. The goal achievement task should be scheduled in week ${totalWeeks}.
 
 **PROGRESSIVE PHASES (CRITICAL - MUST FOLLOW):**
 - **Weeks 1-${foundationEnd}**: FOUNDATION - Start easy, build habits, learn basics (30-40% of goal difficulty)
 - **Weeks ${foundationEnd + 1}-${developmentEnd}**: DEVELOPMENT - Moderate challenge, increase intensity (50-60% of goal difficulty)
 - **Weeks ${developmentEnd + 1}-${buildingEnd}**: BUILDING - Challenging, push limits (70-80% of goal difficulty)
 - **Weeks ${buildingEnd + 1}-${totalWeeks}**: PEAK - Goal achievement level (90-100% of goal difficulty)
-- **Week ${totalWeeks} MUST include the actual goal achievement task** (e.g., run the full marathon, complete the final project, pass the test)
+- **Week ${totalWeeks} MUST include tasks on ALL available days AND the final goal achievement task** (e.g., run the full marathon, complete the final project, pass the test)
 
 Generate a structured plan with specific tasks scheduled within the available time slots.
 

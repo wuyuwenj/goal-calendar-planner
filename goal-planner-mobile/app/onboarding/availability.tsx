@@ -4,10 +4,11 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, Clock, X, Trash2 } from 'lucide-react-native';
 import Animated, { FadeInUp, FadeInRight, FadeOutRight, useAnimatedStyle, useSharedValue, withSpring, Layout } from 'react-native-reanimated';
-import Superwall from 'expo-superwall';
 import { StepIndicator } from '../../components/StepIndicator';
 import { Button } from '../../components/ui/Button';
+import { PaywallScreen } from '../../components/PaywallScreen';
 import { useGoalStore } from '../../store/goal';
+import { useSubscriptionStore } from '../../store/subscription';
 import { COLORS, SPACING, TYPOGRAPHY, RADIUS } from '../../constants/theme';
 
 const ITEM_HEIGHT = 50;
@@ -284,6 +285,10 @@ function DayTimeRow({
 export default function AvailabilityScreen() {
   const router = useRouter();
   const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
+  const { isSubscribed } = useSubscriptionStore();
+
+  // Paywall state
+  const [showPaywall, setShowPaywall] = useState(false);
 
   // Per-day availability state
   const [dayAvailabilities, setDayAvailabilities] = useState<DayAvailability[]>([
@@ -429,54 +434,67 @@ export default function AvailabilityScreen() {
     router.back();
   };
 
+  const proceedWithGoalCreation = async () => {
+    const availability = dayAvailabilities;
+    setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
+
+    try {
+      const result = await createGoal({
+        ...onboardingData,
+        availability,
+      } as any);
+
+      if (result && 'pending' in result && result.pending) {
+        startPolling(result.pendingId);
+      } else {
+        router.replace('./success' as any);
+      }
+    } catch (error: any) {
+      console.error('Failed to create goal:', error);
+      if (error.pending && error.pendingId) {
+        startPolling(error.pendingId);
+      } else if (error.code === 'DAILY_LIMIT_REACHED') {
+        // Handle rate limit error with reset time
+        let errorMessage = 'You\'ve reached your daily limit of 2 goals.';
+        if (error.resetsAt) {
+          const resetDate = new Date(error.resetsAt);
+          const hoursUntilReset = Math.ceil((resetDate.getTime() - Date.now()) / (1000 * 60 * 60));
+          errorMessage += ` Try again in ${hoursUntilReset} hour${hoursUntilReset !== 1 ? 's' : ''}.`;
+        }
+        setPendingState((prev) => ({
+          ...prev,
+          error: errorMessage,
+        }));
+      } else {
+        setPendingState((prev) => ({
+          ...prev,
+          error: error.message || 'Failed to create goal. Please try again.',
+        }));
+      }
+    }
+  };
+
   const handleCreate = () => {
     // Use the per-day availabilities directly
     const availability = dayAvailabilities;
     setOnboardingData({ availability });
 
-    // Show paywall before creating goal
-    Superwall.shared.register({
-      placement: 'create_goal',
-      feature: async () => {
-        // This runs only if user has paid or no paywall is configured
-        setPendingState({ isPending: false, pendingId: null, pollCount: 0, error: null });
+    // If user is already subscribed, proceed directly
+    if (isSubscribed) {
+      proceedWithGoalCreation();
+    } else {
+      // Show paywall
+      setShowPaywall(true);
+    }
+  };
 
-        try {
-          const result = await createGoal({
-            ...onboardingData,
-            availability,
-          } as any);
+  const handlePaywallClose = () => {
+    setShowPaywall(false);
+  };
 
-          if (result && 'pending' in result && result.pending) {
-            startPolling(result.pendingId);
-          } else {
-            router.replace('./success' as any);
-          }
-        } catch (error: any) {
-          console.error('Failed to create goal:', error);
-          if (error.pending && error.pendingId) {
-            startPolling(error.pendingId);
-          } else if (error.code === 'DAILY_LIMIT_REACHED') {
-            // Handle rate limit error with reset time
-            let errorMessage = 'You\'ve reached your daily limit of 2 goals.';
-            if (error.resetsAt) {
-              const resetDate = new Date(error.resetsAt);
-              const hoursUntilReset = Math.ceil((resetDate.getTime() - Date.now()) / (1000 * 60 * 60));
-              errorMessage += ` Try again in ${hoursUntilReset} hour${hoursUntilReset !== 1 ? 's' : ''}.`;
-            }
-            setPendingState((prev) => ({
-              ...prev,
-              error: errorMessage,
-            }));
-          } else {
-            setPendingState((prev) => ({
-              ...prev,
-              error: error.message || 'Failed to create goal. Please try again.',
-            }));
-          }
-        }
-      },
-    });
+  const handlePaywallSubscribed = () => {
+    setShowPaywall(false);
+    proceedWithGoalCreation();
   };
 
   const handleRetry = () => {
@@ -668,6 +686,18 @@ export default function AvailabilityScreen() {
             ) : null}
           </View>
         </View>
+      </Modal>
+
+      {/* Paywall Modal */}
+      <Modal
+        visible={showPaywall}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <PaywallScreen
+          onClose={handlePaywallClose}
+          onSubscribed={handlePaywallSubscribed}
+        />
       </Modal>
     </SafeAreaView>
   );

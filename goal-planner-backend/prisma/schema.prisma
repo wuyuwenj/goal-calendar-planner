@@ -8,6 +8,12 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// Subscription tier enum
+enum SubscriptionTier {
+  free    // No access (must subscribe)
+  premium // Has access (trial or paid, check expiresAt)
+}
+
 model Profile {
   id                 String   @id @default(uuid())
   supabaseUserId     String   @unique @map("supabase_user_id")
@@ -15,6 +21,15 @@ model Profile {
   googleRefreshToken String?  @map("google_refresh_token")
   timezone           String   @default("America/New_York")
   checkInDay         Int      @default(0) @map("check_in_day") // 0 = Sunday
+
+  // Subscription fields
+  subscriptionTier      SubscriptionTier @default(premium) @map("subscription_tier")
+  subscriptionProductId String?   @map("subscription_product_id") // "com.trellis.yearly", "com.trellis.monthly"
+  trialStartedAt        DateTime? @map("trial_started_at")
+  trialEndsAt           DateTime? @map("trial_ends_at")
+  subscriptionExpiresAt DateTime? @map("subscription_expires_at")
+  originalTransactionId String?   @map("original_transaction_id") // Apple's transaction ID
+
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 

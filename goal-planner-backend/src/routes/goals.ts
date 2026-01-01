@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { authMiddleware, requireActiveSubscription, AuthenticatedRequest } from '../middleware/auth';
 import { CreateGoalSchema, UpdateGoalSchema } from '../types';
 import { createGoalWithPlan, getGoalProgress } from '../services/planner';
 import { deleteGoalCalendar, createGoalCalendar, syncTasksToCalendar } from '../services/calendar';
@@ -9,6 +9,8 @@ import { queueGoalCreation, getPendingGoalStatus } from '../services/jobQueue';
 export async function goalRoutes(fastify: FastifyInstance) {
   // Apply auth to all routes
   fastify.addHook('preHandler', authMiddleware);
+  // Block expired subscriptions from all goal routes
+  fastify.addHook('preHandler', requireActiveSubscription);
 
   // Get all goals for user
   fastify.get('/', async (request) => {
@@ -75,9 +77,13 @@ export async function goalRoutes(fastify: FastifyInstance) {
   // Get goal creation quota
   fastify.get('/quota', async (request) => {
     const req = request as AuthenticatedRequest;
-    const DAILY_LIMIT = 2;
+    const DAILY_LIMIT = 3;
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
+    // Middleware already blocks expired users, so we know subscription is active
+    const tier = req.subscriptionStatus.tier;
+
+    // Get recent creations for rate limiting
     const recentCreations = await prisma.usageLog.findMany({
       where: {
         profileId: req.profileId,
@@ -96,6 +102,7 @@ export async function goalRoutes(fastify: FastifyInstance) {
     }
 
     return {
+      tier,
       limit: DAILY_LIMIT,
       remaining,
       used: recentCreations.length,
@@ -114,8 +121,9 @@ export async function goalRoutes(fastify: FastifyInstance) {
 
     const input = parseResult.data;
 
-    // Rate limit check: 2 goals per 24 hours (sliding window)
-    const DAILY_LIMIT = 2;
+    // Middleware already blocks expired users
+    // Rate limit: 3 goals per day for all active users
+    const DAILY_LIMIT = 3;
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const recentCreations = await prisma.usageLog.findMany({
@@ -134,7 +142,7 @@ export async function goalRoutes(fastify: FastifyInstance) {
       return reply.status(429).send({
         error: 'Daily goal creation limit reached',
         code: 'DAILY_LIMIT_REACHED',
-        message: `You can only create ${DAILY_LIMIT} goals per day. Try again later.`,
+        message: `You can create ${DAILY_LIMIT} goals per day. Try again later.`,
         limit: DAILY_LIMIT,
         remaining: 0,
         resetsAt: resetsAt.toISOString()

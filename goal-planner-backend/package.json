@@ -26,6 +26,7 @@
     "expo": "^54.0.27",
     "fastify": "^4.27.0",
     "googleapis": "^137.0.0",
+    "svix": "^1.82.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

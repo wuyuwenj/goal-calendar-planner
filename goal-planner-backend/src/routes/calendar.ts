@@ -1,12 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { authMiddleware, requireActiveSubscription, AuthenticatedRequest } from '../middleware/auth';
 import { getAuthUrl, getTokensFromCode } from '../lib/google';
 import { verifyCalendarConnection } from '../services/calendar';
 
 export async function calendarRoutes(fastify: FastifyInstance) {
-  // Get Google OAuth URL (authenticated)
-  fastify.get('/connect', { preHandler: authMiddleware }, async (request) => {
+  // Get Google OAuth URL (authenticated + requires active subscription)
+  fastify.get('/connect', { preHandler: [authMiddleware, requireActiveSubscription] }, async (request) => {
     const req = request as AuthenticatedRequest;
     const baseUrl = getAuthUrl();
 
@@ -81,7 +81,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
   // Store Google refresh token from mobile OAuth
   fastify.post<{
     Body: { refreshToken: string };
-  }>('/store-token', { preHandler: authMiddleware }, async (request, reply) => {
+  }>('/store-token', { preHandler: [authMiddleware, requireActiveSubscription] }, async (request, reply) => {
     const req = request as AuthenticatedRequest;
     const { refreshToken } = request.body;
 
@@ -112,7 +112,7 @@ export async function calendarRoutes(fastify: FastifyInstance) {
   });
 
   // Refresh connection (get new auth URL if needed)
-  fastify.post('/refresh', { preHandler: authMiddleware }, async (request) => {
+  fastify.post('/refresh', { preHandler: [authMiddleware, requireActiveSubscription] }, async (request) => {
     const req = request as AuthenticatedRequest;
 
     const isConnected = await verifyCalendarConnection(req.profileId);

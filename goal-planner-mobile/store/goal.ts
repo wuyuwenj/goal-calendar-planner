@@ -61,6 +61,9 @@ interface GoalState {
 
   // Calendar sync
   syncToCalendar: (goalId: string, force?: boolean) => Promise<{ success: boolean; needsAuth?: boolean; synced?: number; error?: string }>;
+
+  // Reset store (called on sign out)
+  reset: () => void;
 }
 
 function calculateTargetDate(timeline: Timeline, customWeeks?: number): string {
@@ -395,5 +398,21 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     } finally {
       set({ isLoading: false });
     }
+  },
+
+  reset: () => {
+    set({
+      currentGoal: null,
+      goals: [],
+      tasks: [],
+      checkIns: [],
+      progress: null,
+      isLoading: false,
+      isInitialLoad: true,
+      lastFetched: null,
+      error: null,
+      pendingGoalId: null,
+      onboardingData: {},
+    });
   },
 }));

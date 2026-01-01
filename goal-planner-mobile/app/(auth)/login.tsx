@@ -1,8 +1,8 @@
-import React, { ReactNode, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { ReactNode, useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, Platform, Pressable, TextInput, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sprout, Sparkles, Calendar, TreeDeciduous } from 'lucide-react-native';
+import { Sprout, Sparkles, Calendar, TreeDeciduous, X } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { TrellisIcon } from '../../components/TrellisIcon';
 import { Button } from '../../components/ui/Button';
@@ -12,12 +12,23 @@ import { COLORS } from '../../constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signInWithGoogle, signInWithApple, isAuthenticated, isLoading, error, clearError } =
+  const { signInWithGoogle, signInWithApple, signInWithEmail, isAuthenticated, isLoading, error, clearError } =
     useAuthStore();
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
+  // Hidden demo login state
+  const [tapCount, setTapCount] = useState(0);
+  const [showDemoLogin, setShowDemoLogin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (isAuthenticated) {
+      // Close demo login modal if open
+      if (showDemoLogin) {
+        setShowDemoLogin(false);
+      }
       router.replace('/(tabs)');
     }
   }, [isAuthenticated]);
@@ -29,6 +40,25 @@ export default function LoginScreen() {
     }
   }, []);
 
+  const handleLogoTap = () => {
+    // Reset tap count after 2 seconds of no taps
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+    }
+
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+
+    if (newCount >= 5) {
+      setShowDemoLogin(true);
+      setTapCount(0);
+    } else {
+      tapTimeoutRef.current = setTimeout(() => {
+        setTapCount(0);
+      }, 2000);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     clearError();
     await signInWithGoogle();
@@ -39,14 +69,31 @@ export default function LoginScreen() {
     await signInWithApple();
   };
 
+  const handleEmailSignIn = async () => {
+    clearError();
+    if (!email || !password) {
+      return;
+    }
+    await signInWithEmail(email, password);
+  };
+
+  const closeDemoLogin = () => {
+    setShowDemoLogin(false);
+    setEmail('');
+    setPassword('');
+    clearError();
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Logo Section */}
+        {/* Logo Section - Tap 5 times to reveal demo login */}
         <View style={styles.logoSection}>
-          <View style={styles.logoContainer}>
-            <TrellisIcon size={72} color={COLORS.primary.forest} />
-          </View>
+          <Pressable onPress={handleLogoTap}>
+            <View style={styles.logoContainer}>
+              <TrellisIcon size={72} color={COLORS.primary.forest} />
+            </View>
+          </Pressable>
           <Text style={styles.title}>Trellis</Text>
           <Text style={styles.subtitle}>
             Turn your dreams into achievable daily actions
@@ -101,6 +148,66 @@ export default function LoginScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Hidden Demo Login Modal */}
+      <Modal
+        visible={showDemoLogin}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeDemoLogin}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <SafeAreaView style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Demo Login</Text>
+              <Pressable onPress={closeDemoLogin} style={styles.closeButton}>
+                <X size={24} color={COLORS.neutral[600]} />
+              </Pressable>
+            </View>
+
+            {error && (
+              <Card variant="error" style={styles.errorCard}>
+                <Text style={styles.errorText}>{error}</Text>
+              </Card>
+            )}
+
+            <View style={styles.formContainer}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="demo@trellis.app"
+                placeholderTextColor={COLORS.neutral[400]}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+              />
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter password"
+                placeholderTextColor={COLORS.neutral[400]}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+
+              <Button
+                onPress={handleEmailSignIn}
+                loading={isLoading}
+                style={styles.signInButton}
+              >
+                Sign In
+              </Button>
+            </View>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -212,5 +319,50 @@ const styles = StyleSheet.create({
     color: COLORS.neutral[400],
     textAlign: 'center',
     lineHeight: 18,
+  },
+  // Demo login modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: COLORS.secondary.cream,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: COLORS.secondary.bark,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  formContainer: {
+    gap: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.secondary.bark,
+    marginBottom: 4,
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderColor: COLORS.neutral[300],
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: COLORS.secondary.bark,
+    backgroundColor: COLORS.neutral[50],
+  },
+  signInButton: {
+    marginTop: 8,
   },
 });

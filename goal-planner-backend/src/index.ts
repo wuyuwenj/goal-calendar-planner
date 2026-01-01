@@ -5,6 +5,7 @@ import { taskRoutes } from './routes/tasks';
 import { checkinRoutes } from './routes/checkin';
 import { calendarRoutes } from './routes/calendar';
 import { profileRoutes } from './routes/profile';
+import { webhookRoutes } from './routes/webhooks';
 import { startJobProcessor } from './services/jobQueue';
 
 // Load environment variables in development
@@ -40,6 +41,7 @@ async function main() {
   fastify.register(taskRoutes, { prefix: '/api/tasks' });
   fastify.register(checkinRoutes, { prefix: '/api/checkin' });
   fastify.register(calendarRoutes, { prefix: '/api/calendar' });
+  fastify.register(webhookRoutes, { prefix: '/api/webhooks' });
 
   // Health check endpoint
   fastify.get('/health', async () => ({
@@ -58,6 +60,7 @@ async function main() {
       tasks: '/api/tasks',
       checkin: '/api/checkin',
       calendar: '/api/calendar',
+      webhooks: '/api/webhooks',
       health: '/health',
     },
   }));

@@ -1,23 +1,42 @@
 import "../global.css";
-import { useEffect } from 'react';
+import { useEffect, ReactNode } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SuperwallProvider } from 'expo-superwall';
 import { useAuthStore } from '../store/auth';
+import { useSubscriptionStore } from '../store/subscription';
+
+// Conditionally import Superwall to handle Expo Go
+let SuperwallProvider: React.ComponentType<{ apiKeys: { ios: string }; children: ReactNode }> | null = null;
+try {
+  SuperwallProvider = require('expo-superwall').SuperwallProvider;
+} catch {
+  // Superwall not available (running in Expo Go)
+}
+
+function SuperwallWrapper({ children }: { children: ReactNode }) {
+  if (SuperwallProvider) {
+    return (
+      <SuperwallProvider apiKeys={{ ios: "pk_FAx9e-d6O32Ee-uIf41-N" }}>
+        {children}
+      </SuperwallProvider>
+    );
+  }
+  // Fallback for Expo Go - just render children
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
-  const initialize = useAuthStore((s) => s.initialize);
+  const initializeAuth = useAuthStore((s) => s.initialize);
+  const initializeSubscription = useSubscriptionStore((s) => s.initialize);
 
   useEffect(() => {
-    initialize();
+    initializeAuth();
+    // Initialize subscription store to check for existing subscriptions
+    initializeSubscription();
   }, []);
 
   return (
-    <SuperwallProvider
-      apiKeys={{
-        ios: "pk_FAx9e-d6O32Ee-uIf41-N",
-      }}
-    >
+    <SuperwallWrapper>
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
@@ -25,6 +44,6 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="checkin" />
       </Stack>
-    </SuperwallProvider>
+    </SuperwallWrapper>
   );
 }

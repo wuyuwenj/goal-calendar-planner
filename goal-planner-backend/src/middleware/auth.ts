@@ -13,6 +13,10 @@ export interface AuthenticatedRequest extends FastifyRequest {
     email: string;
   };
   profileId: string;
+  subscriptionStatus: {
+    tier: 'free' | 'premium' | 'expired';
+    isExpired: boolean;
+  };
 }
 
 export async function authMiddleware(
@@ -37,18 +41,56 @@ export async function authMiddleware(
   }
 
   // Get or create profile (using upsert to avoid race conditions)
+  const now = new Date();
+  const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days trial
+
   const profile = await prisma.profile.upsert({
     where: { supabaseUserId: user.id },
     update: {}, // No updates needed if profile exists
     create: {
       supabaseUserId: user.id,
       email: user.email!,
+      // Start 7-day free trial (premium with expiration)
+      subscriptionTier: 'premium',
+      subscriptionExpiresAt: trialEnd,
     },
   });
+
+  // Check subscription status
+  const tier = profile.subscriptionTier || 'free';
+
+  // Free tier = always blocked
+  // Premium tier = check expiration date
+  const isExpired = tier === 'free' ||
+                    (tier === 'premium' &&
+                     !!profile.subscriptionExpiresAt &&
+                     profile.subscriptionExpiresAt < now);
 
   (request as AuthenticatedRequest).user = {
     id: user.id,
     email: user.email!,
   };
   (request as AuthenticatedRequest).profileId = profile.id;
+  (request as AuthenticatedRequest).subscriptionStatus = {
+    tier: isExpired ? 'expired' : tier,
+    isExpired,
+  };
+}
+
+// Middleware to block expired subscriptions
+// Use this on routes that require active subscription
+export async function requireActiveSubscription(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  const req = request as AuthenticatedRequest;
+
+  if (req.subscriptionStatus?.isExpired) {
+    return reply.status(403).send({
+      error: 'Subscription expired',
+      code: 'SUBSCRIPTION_EXPIRED',
+      message: 'Your subscription has expired. Subscribe to continue.',
+      tier: 'expired'
+    });
+  }
 }

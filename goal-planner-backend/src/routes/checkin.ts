@@ -1,12 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { authMiddleware, AuthenticatedRequest } from '../middleware/auth';
+import { authMiddleware, requireActiveSubscription, AuthenticatedRequest } from '../middleware/auth';
 import { CheckInSchema } from '../types';
 import { adjustPlanIntensity } from '../services/ai';
 import { differenceInWeeks } from 'date-fns';
 
 export async function checkinRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
+  // Block expired subscriptions
+  fastify.addHook('preHandler', requireActiveSubscription);
 
   // Get pending check-in for a goal
   fastify.get<{ Params: { goalId: string } }>(
