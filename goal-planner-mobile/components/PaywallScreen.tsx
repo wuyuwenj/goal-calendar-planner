@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { X, Check, Sparkles } from 'lucide-react-native';
@@ -39,6 +40,11 @@ const BENEFITS = [
 ];
 
 export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const contentMaxWidth = isTablet ? 500 : undefined;
+  const horizontalPadding = isTablet ? SPACING.xxl : SPACING.lg;
+
   const {
     products,
     isLoading,
@@ -144,9 +150,14 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
       </TouchableOpacity>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingHorizontal: horizontalPadding },
+          isTablet && styles.scrollContentTablet,
+        ]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[isTablet && { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' }]}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.iconContainer}>
@@ -277,6 +288,7 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
           Subscription automatically renews unless canceled at least 24 hours before
           the end of the current period.
         </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -308,6 +320,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xxl,
     paddingBottom: SPACING.xl,
+  },
+  scrollContentTablet: {
+    alignItems: 'center',
+    paddingTop: SPACING.xxl * 1.5,
   },
   header: {
     alignItems: 'center',

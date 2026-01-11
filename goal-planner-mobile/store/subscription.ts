@@ -35,6 +35,7 @@ interface SubscriptionState {
   error: string | null;
   selectedProductId: string | null;
   purchaseListenerCleanup: (() => void) | null;
+  purchaseTimeoutId: ReturnType<typeof setTimeout> | null;
   initialize: () => Promise<void>;
   fetchProducts: () => Promise<void>;
   purchaseProduct: (productId: string) => Promise<boolean>;
@@ -43,6 +44,7 @@ interface SubscriptionState {
   setIsSubscribed: (value: boolean) => Promise<void>;
   clearError: () => void;
   cleanup: () => void;
+  clearPurchaseTimeout: () => void;
 }
 
 // For Expo Go, we use a mock store
@@ -76,6 +78,15 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   error: null,
   selectedProductId: PRODUCT_IDS.YEARLY,
   purchaseListenerCleanup: null,
+  purchaseTimeoutId: null,
+
+  clearPurchaseTimeout: () => {
+    const { purchaseTimeoutId } = get();
+    if (purchaseTimeoutId) {
+      clearTimeout(purchaseTimeoutId);
+      set({ purchaseTimeoutId: null });
+    }
+  },
 
   initialize: async () => {
     set({ isLoading: true, error: null });
@@ -114,6 +125,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const purchaseUpdateSubscription = RNIap.purchaseUpdatedListener(
         async (purchase: any) => {
           console.log('Purchase updated:', purchase);
+          // Clear timeout on any purchase update
+          get().clearPurchaseTimeout();
           if (purchase.transactionId) {
             try {
               await RNIap.finishTransaction({ purchase, isConsumable: false });
@@ -146,6 +159,8 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const purchaseErrorSubscription = RNIap.purchaseErrorListener(
         (error: any) => {
           console.error('Purchase error:', error);
+          // Clear timeout on error
+          get().clearPurchaseTimeout();
           set({
             error: error.message || 'Purchase failed',
             isPurchasing: false,
@@ -232,7 +247,23 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       return true;
     }
 
+    // Clear any existing timeout
+    get().clearPurchaseTimeout();
     set({ isPurchasing: true, error: null });
+
+    // Set a timeout to prevent infinite loading (60 seconds)
+    const timeoutId = setTimeout(() => {
+      const { isPurchasing } = get();
+      if (isPurchasing) {
+        console.warn('Purchase timeout - resetting state');
+        set({
+          isPurchasing: false,
+          error: 'Purchase timed out. Please try again.',
+          purchaseTimeoutId: null,
+        });
+      }
+    }, 60000);
+    set({ purchaseTimeoutId: timeoutId });
 
     try {
       const RNIap = require('react-native-iap');
@@ -250,6 +281,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       return true;
     } catch (error: any) {
       console.error('Purchase request error:', error);
+      get().clearPurchaseTimeout();
 
       if (error.code === 'E_USER_CANCELLED' || error.code === 'user-cancelled') {
         set({ isPurchasing: false });
@@ -307,6 +339,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   clearError: () => set({ error: null }),
 
   cleanup: () => {
+    // Clear any pending purchase timeout
+    get().clearPurchaseTimeout();
+
     if (isExpoGo) {
       console.log('[Expo Go] Mock cleanup');
       return;
