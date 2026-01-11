@@ -108,11 +108,11 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
   };
 
   const openTerms = () => {
-    Linking.openURL('https://your-app.com/terms');
+    Linking.openURL('https://trellisgoal.vercel.app/terms');
   };
 
   const openPrivacy = () => {
-    Linking.openURL('https://your-app.com/privacy');
+    Linking.openURL('https://trellisgoal.vercel.app/privacy');
   };
 
   // Calculate savings
