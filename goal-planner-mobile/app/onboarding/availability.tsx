@@ -284,11 +284,12 @@ function DayTimeRow({
 
 export default function AvailabilityScreen() {
   const router = useRouter();
-  const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
+  const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, fetchGoals, isLoading } = useGoalStore();
   const { isSubscribed, setIsSubscribed } = useSubscriptionStore();
 
   // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
+  const [hasExistingGoals, setHasExistingGoals] = useState(false);
 
   // Per-day availability state
   const [dayAvailabilities, setDayAvailabilities] = useState<DayAvailability[]>([
@@ -478,7 +479,7 @@ export default function AvailabilityScreen() {
     }
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     // Use the per-day availabilities directly
     const availability = dayAvailabilities;
     setOnboardingData({ availability });
@@ -487,6 +488,9 @@ export default function AvailabilityScreen() {
     if (isSubscribed) {
       proceedWithGoalCreation();
     } else {
+      // Check if user already has goals before showing paywall
+      const existingGoals = await fetchGoals();
+      setHasExistingGoals(existingGoals.length > 0);
       // Show paywall
       setShowPaywall(true);
     }
@@ -498,7 +502,12 @@ export default function AvailabilityScreen() {
 
   const handlePaywallSubscribed = () => {
     setShowPaywall(false);
-    proceedWithGoalCreation();
+    if (hasExistingGoals) {
+      // User already has goals, go back to dashboard instead of creating new
+      router.replace('/(tabs)');
+    } else {
+      proceedWithGoalCreation();
+    }
   };
 
   const handleRetry = () => {
