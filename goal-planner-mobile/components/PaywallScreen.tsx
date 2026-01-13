@@ -17,10 +17,12 @@ import { useSubscriptionStore, PRODUCT_IDS } from '../store/subscription';
 import { Button } from './ui/Button';
 import { getCrossedOutPriceByCurrency } from '../utils/pricingUtils';
 
-// Conditionally import Superwall hook
+// Conditionally import Superwall
 let useSuperwall: () => { setSubscriptionStatus: (status: any) => Promise<void> };
+let Superwall: any = null;
 try {
   useSuperwall = require('expo-superwall').useSuperwall;
+  Superwall = require('expo-superwall').default;
 } catch {
   // Fallback for Expo Go
   useSuperwall = () => ({
@@ -57,6 +59,7 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
     purchaseProduct,
     restorePurchases,
     setSelectedProduct,
+    setIsSubscribed,
     clearError,
   } = useSubscriptionStore();
 
@@ -88,11 +91,65 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
 
   const handlePurchase = async () => {
     if (!selectedProductId) return;
-    const success = await purchaseProduct(selectedProductId);
-    if (success) {
-      onSubscribed();
+
+    // Use Superwall for purchase if available (for webhook tracking)
+    if (Superwall) {
+      try {
+        set({ isPurchasing: true });
+        // Determine placement based on selected product
+        const placement = selectedProductId === PRODUCT_IDS.YEARLY
+          ? 'purchase_yearly'
+          : 'purchase_monthly';
+
+        await Superwall.shared.register({
+          placement,
+          feature: async () => {
+            // Purchase succeeded - Superwall handles webhook
+            await setSubscriptionStatus({
+              status: 'ACTIVE',
+              entitlements: [{ id: 'pro', type: 'SERVICE_LEVEL' }],
+            });
+            await setIsSubscribed(true);
+            onSubscribed();
+          },
+        });
+      } catch (error: any) {
+        console.error('Superwall purchase error:', error);
+
+        // Handle "item already owned" - user has active subscription
+        if (error.message?.includes('already owned') || error.code === 'E_ALREADY_OWNED') {
+          // Try to restore the existing purchase
+          const restored = await restorePurchases();
+          if (restored) {
+            await setSubscriptionStatus({
+              status: 'ACTIVE',
+              entitlements: [{ id: 'pro', type: 'SERVICE_LEVEL' }],
+            });
+            Alert.alert('Subscription Restored', 'Your existing subscription has been restored!', [
+              { text: 'OK', onPress: onSubscribed },
+            ]);
+            return;
+          }
+        }
+
+        // Don't show error for user cancellation
+        if (!error.message?.includes('cancel')) {
+          Alert.alert('Error', error.message || 'Purchase failed');
+        }
+      } finally {
+        set({ isPurchasing: false });
+      }
+    } else {
+      // Fallback to direct purchase (Expo Go)
+      const success = await purchaseProduct(selectedProductId);
+      if (success) {
+        onSubscribed();
+      }
     }
   };
+
+  // Helper to update store state
+  const set = useSubscriptionStore.setState;
 
   const handleRestore = async () => {
     const hasSubscription = await restorePurchases();
