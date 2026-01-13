@@ -42,6 +42,12 @@ export default function SettingsScreen() {
   // Use session email as fallback when profile hasn't loaded
   const displayEmail = user?.email || session?.user?.email || 'Not signed in';
 
+  // Detect auth provider (Google vs Apple)
+  const authProvider = session?.user?.app_metadata?.provider || 'email';
+  const isAppleUser = authProvider === 'apple';
+  const isGoogleUser = authProvider === 'google';
+  const providerLabel = isAppleUser ? 'Apple Account' : isGoogleUser ? 'Google Account' : 'Email Account';
+
   // Check calendar connection status on mount
   useEffect(() => {
     checkCalendarStatus();
@@ -221,7 +227,7 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.accountInfo}>
                 <Text style={styles.accountEmail}>{displayEmail}</Text>
-                <Text style={styles.accountLabel}>Google Account</Text>
+                <Text style={styles.accountLabel}>{providerLabel}</Text>
               </View>
             </View>
           </View>
@@ -246,7 +252,8 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Integrations Section */}
+        {/* Integrations Section - Only show for Google users */}
+        {isGoogleUser && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Integrations</Text>
           <View style={styles.card}>
@@ -278,6 +285,7 @@ export default function SettingsScreen() {
             </Text>
           </View>
         </View>
+        )}
 
         {/* Current Goal Section */}
         {currentGoal && (
