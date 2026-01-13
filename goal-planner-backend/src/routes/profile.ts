@@ -121,53 +121,7 @@ export async function profileRoutes(fastify: FastifyInstance) {
     return { availability: updated };
   });
 
-  // Update subscription status (called after Apple IAP purchase)
-  fastify.post('/subscription', async (request, reply) => {
-    const req = request as AuthenticatedRequest;
-    const {
-      tier,
-      productId,
-      transactionId,
-      expiresAt,
-    } = request.body as {
-      tier: 'free' | 'premium';
-      productId?: string;
-      transactionId?: string;
-      expiresAt?: string;
-    };
-
-    if (!tier || !['free', 'premium'].includes(tier)) {
-      return reply.status(400).send({ error: 'Invalid subscription tier. Must be "free" or "premium"' });
-    }
-
-    const updateData: any = {
-      subscriptionTier: tier,
-      subscriptionProductId: productId || null,
-      originalTransactionId: transactionId || null,
-    };
-
-    // Set expiration date
-    if (expiresAt) {
-      updateData.subscriptionExpiresAt = new Date(expiresAt);
-    }
-
-    const updatedProfile = await prisma.profile.update({
-      where: { id: req.profileId },
-      data: updateData,
-      select: {
-        subscriptionTier: true,
-        subscriptionProductId: true,
-        subscriptionExpiresAt: true,
-      }
-    });
-
-    return {
-      success: true,
-      subscription: updatedProfile
-    };
-  });
-
-  // Get subscription status
+  // Get subscription status (read-only - updates only via Superwall webhooks)
   fastify.get('/subscription', async (request) => {
     const req = request as AuthenticatedRequest;
 
