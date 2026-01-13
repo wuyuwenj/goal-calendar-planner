@@ -285,7 +285,7 @@ function DayTimeRow({
 export default function AvailabilityScreen() {
   const router = useRouter();
   const { onboardingData, setOnboardingData, createGoal, checkPendingGoal, clearPendingGoal, isLoading } = useGoalStore();
-  const { isSubscribed } = useSubscriptionStore();
+  const { isSubscribed, setIsSubscribed } = useSubscriptionStore();
 
   // Paywall state
   const [showPaywall, setShowPaywall] = useState(false);
@@ -453,6 +453,10 @@ export default function AvailabilityScreen() {
       console.error('Failed to create goal:', error);
       if (error.pending && error.pendingId) {
         startPolling(error.pendingId);
+      } else if (error.code === 'SUBSCRIPTION_EXPIRED' || error.code === 'SUBSCRIPTION_REQUIRED') {
+        // Subscription expired or not found - update local state and show paywall
+        await setIsSubscribed(false);
+        setShowPaywall(true);
       } else if (error.code === 'DAILY_LIMIT_REACHED') {
         // Handle rate limit error with reset time
         let errorMessage = 'You\'ve reached your daily limit of 2 goals.';
