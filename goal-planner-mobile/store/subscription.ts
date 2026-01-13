@@ -288,6 +288,14 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
         return false;
       }
 
+      // Handle "item already owned" - restore to finish pending transactions
+      if (error.code === 'E_ALREADY_OWNED' || error.message?.includes('already owned')) {
+        console.log('Item already owned - attempting restore');
+        const restored = await get().restorePurchases();
+        set({ isPurchasing: false });
+        return restored;
+      }
+
       set({
         error: error.message || 'Purchase failed',
         isPurchasing: false,
@@ -308,6 +316,16 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       const RNIap = require('react-native-iap');
       const purchases = await RNIap.getAvailablePurchases({});
       console.log('Available purchases:', purchases);
+
+      // Finish any pending transactions to clear "item already owned" errors
+      for (const purchase of purchases) {
+        try {
+          await RNIap.finishTransaction({ purchase, isConsumable: false });
+          console.log('Finished transaction for:', purchase.productId);
+        } catch (e) {
+          console.warn('Failed to finish transaction:', e);
+        }
+      }
 
       const hasActiveSubscription = purchases.some((purchase: any) =>
         Object.values(PRODUCT_IDS).includes(purchase.productId)
