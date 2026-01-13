@@ -43,7 +43,20 @@ export default function Dashboard() {
   }, [isAuthenticated, authLoading]);
 
   const loadData = async (background = false) => {
+    // Check auth state before fetching - user might have signed out
+    const { isAuthenticated: stillAuthenticated } = useAuthStore.getState();
+    if (!stillAuthenticated) {
+      return; // User signed out, don't redirect to onboarding
+    }
+
     const goals = await fetchGoals({ background });
+
+    // Double-check auth state after async call
+    const { isAuthenticated: stillAuthAfterFetch } = useAuthStore.getState();
+    if (!stillAuthAfterFetch) {
+      return; // User signed out during fetch
+    }
+
     if (goals.length === 0) {
       router.replace('/onboarding/welcome' as any);
       return;
