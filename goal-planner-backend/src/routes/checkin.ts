@@ -119,8 +119,20 @@ export async function checkinRoutes(fastify: FastifyInstance) {
     const missedTasks: string[] = [];
 
     for (const result of input.taskResults) {
-      const task = await prisma.task.update({
-        where: { id: result.taskId },
+      // Verify task belongs to the user's goal before updating
+      const task = await prisma.task.findFirst({
+        where: {
+          id: result.taskId,
+          goal: { profileId: req.profileId },
+        },
+      });
+
+      if (!task) {
+        return reply.status(404).send({ error: `Task ${result.taskId} not found or access denied` });
+      }
+
+      await prisma.task.update({
+        where: { id: task.id },
         data: { status: result.status },
       });
 

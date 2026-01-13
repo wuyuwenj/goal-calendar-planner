@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { authMiddleware, requireActiveSubscription, AuthenticatedRequest } from '../middleware/auth';
 import { getAuthUrl, getTokensFromCode } from '../lib/google';
 import { verifyCalendarConnection } from '../services/calendar';
+import { createOAuthState, validateAndConsumeState } from '../lib/oauthState';
 
 export async function calendarRoutes(fastify: FastifyInstance) {
   // Get Google OAuth URL (authenticated + requires active subscription)
@@ -10,9 +11,10 @@ export async function calendarRoutes(fastify: FastifyInstance) {
     const req = request as AuthenticatedRequest;
     const baseUrl = getAuthUrl();
 
-    // Store profile ID in state for callback
+    // Generate secure random state token (not profileId)
+    const state = createOAuthState(req.profileId);
     const url = new URL(baseUrl);
-    url.searchParams.set('state', req.profileId);
+    url.searchParams.set('state', state);
 
     return { url: url.toString() };
   });
@@ -21,16 +23,23 @@ export async function calendarRoutes(fastify: FastifyInstance) {
   fastify.get<{
     Querystring: { code?: string; state?: string; error?: string };
   }>('/callback', async (request, reply) => {
-    const { code, state: profileId, error } = request.query;
+    const { code, state, error } = request.query;
+    const scheme = process.env.APP_SCHEME || 'trellis';
 
     if (error) {
       console.error('Google OAuth error:', error);
-      const scheme = process.env.APP_SCHEME || 'trellis';
       return reply.redirect(`${scheme}://calendar-error?error=` + encodeURIComponent(error));
     }
 
-    if (!code || !profileId) {
+    if (!code || !state) {
       return reply.status(400).send({ error: 'Missing code or state' });
+    }
+
+    // Validate state and get profileId (single-use, expires after 10 min)
+    const profileId = validateAndConsumeState(state);
+    if (!profileId) {
+      console.error('Invalid or expired OAuth state:', state.substring(0, 8) + '...');
+      return reply.redirect(`${scheme}://calendar-error?error=` + encodeURIComponent('Invalid or expired authorization. Please try again.'));
     }
 
     try {
@@ -46,11 +55,9 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       });
 
       // Redirect to app success page
-      const scheme = process.env.APP_SCHEME || 'trellis';
       return reply.redirect(`${scheme}://calendar-connected`);
     } catch (err) {
       console.error('Google OAuth token exchange error:', err);
-      const scheme = process.env.APP_SCHEME || 'trellis';
       return reply.redirect(`${scheme}://calendar-error`);
     }
   });
@@ -127,10 +134,11 @@ export async function calendarRoutes(fastify: FastifyInstance) {
       data: { googleRefreshToken: null },
     });
 
-    // Generate new auth URL
+    // Generate new auth URL with secure state
+    const state = createOAuthState(req.profileId);
     const baseUrl = getAuthUrl();
     const url = new URL(baseUrl);
-    url.searchParams.set('state', req.profileId);
+    url.searchParams.set('state', state);
 
     return {
       needsReauth: true,
