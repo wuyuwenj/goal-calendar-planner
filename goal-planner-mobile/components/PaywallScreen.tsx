@@ -15,6 +15,7 @@ import { X, Check, Sparkles } from 'lucide-react-native';
 import { COLORS, SHADOWS, SPACING, RADIUS } from '../constants/theme';
 import { useSubscriptionStore, PRODUCT_IDS } from '../store/subscription';
 import { Button } from './ui/Button';
+import { getCrossedOutPriceByCurrency } from '../utils/pricingUtils';
 
 // Conditionally import Superwall hook
 let useSuperwall: () => { setSubscriptionStatus: (status: any) => Promise<void> };
@@ -204,13 +205,27 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
               <View style={styles.planInfo}>
                 <Text style={styles.planName}>Yearly</Text>
                 <View style={styles.priceRow}>
-                  <Text style={styles.originalPrice}>$59.99</Text>
+                  <Text style={styles.originalPrice}>
+                    {yearlyProduct?.currency
+                      ? getCrossedOutPriceByCurrency(yearlyProduct.currency, 'yearly')?.formatted || '$59.99'
+                      : '$59.99'}
+                  </Text>
                   <Text style={styles.planPrice}>
                     {yearlyProduct?.localizedPrice || '$29.99'}/year
                   </Text>
                 </View>
                 <Text style={styles.planSubprice}>
-                  Just {yearlyProduct ? `$${(yearlyProduct.priceAmount / 12).toFixed(2)}` : '$2.49'}/month
+                  Just {yearlyProduct ? (() => {
+                    const priceInfo = getCrossedOutPriceByCurrency(yearlyProduct.currency, 'yearly');
+                    const symbol = priceInfo?.symbol || '$';
+                    const monthlyAmount = yearlyProduct.priceAmount / 12;
+                    // Currencies without decimals
+                    const noDecimals = ['JPY', 'KRW', 'CLP', 'COP', 'HUF', 'IDR', 'VND', 'KZT', 'TWD'];
+                    const formatted = noDecimals.includes(yearlyProduct.currency)
+                      ? Math.round(monthlyAmount).toLocaleString()
+                      : monthlyAmount.toFixed(2);
+                    return `${symbol}${formatted}`;
+                  })() : '$2.49'}/month
                 </Text>
               </View>
               <View style={styles.bestValueBadge}>
@@ -240,7 +255,11 @@ export function PaywallScreen({ onClose, onSubscribed }: PaywallScreenProps) {
               <View style={styles.planInfo}>
                 <Text style={styles.planName}>Monthly</Text>
                 <View style={styles.priceRow}>
-                  <Text style={styles.originalPrice}>$9.99</Text>
+                  <Text style={styles.originalPrice}>
+                    {monthlyProduct?.currency
+                      ? getCrossedOutPriceByCurrency(monthlyProduct.currency, 'monthly')?.formatted || '$9.99'
+                      : '$9.99'}
+                  </Text>
                   <Text style={styles.planPrice}>
                     {monthlyProduct?.localizedPrice || '$4.99'}/month
                   </Text>
