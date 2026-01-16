@@ -28,6 +28,7 @@ interface GoalState {
   lastFetched: number | null; // Timestamp of last successful fetch
   error: string | null;
   pendingGoalId: string | null;
+  deletingGoalIds: Set<string>; // Track goals being deleted to prevent race conditions
 
   // Onboarding
   onboardingData: Partial<OnboardingData>;
@@ -95,6 +96,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   lastFetched: null,
   error: null,
   pendingGoalId: null,
+  deletingGoalIds: new Set<string>(),
   onboardingData: {},
 
   setOnboardingData: (data) => {
@@ -115,7 +117,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   fetchGoals: async (options = {}) => {
     const { background = false } = options;
-    const { isInitialLoad } = get();
+    const { isInitialLoad, deletingGoalIds } = get();
 
     // Only show loading spinner on initial load, not background refreshes
     if (!background && isInitialLoad) {
@@ -124,7 +126,8 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
     try {
       const response = await apiClient.get<{ goals: Goal[] }>('/api/goals');
-      const goals = response.goals || [];
+      // Filter out any goals that are currently being deleted to prevent race conditions
+      const goals = (response.goals || []).filter((g) => !deletingGoalIds.has(g.id));
       set({ goals });
       if (goals.length > 0) {
         set({ currentGoal: goals[0] });
@@ -142,7 +145,12 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   fetchGoalById: async (id: string, options = {}) => {
     const { background = false, skipIfFresh = false } = options;
-    const { isInitialLoad, currentGoal } = get();
+    const { isInitialLoad, currentGoal, deletingGoalIds } = get();
+
+    // Don't fetch a goal that's being deleted
+    if (deletingGoalIds.has(id)) {
+      return;
+    }
 
     // Skip fetch if data is fresh and we have the same goal loaded
     if (skipIfFresh && currentGoal?.id === id && get().isDataFresh()) {
@@ -233,17 +241,33 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   },
 
   deleteGoal: async (id: string) => {
-    set({ isLoading: true, error: null });
+    // Add to deletingGoalIds to prevent race conditions with concurrent fetches
+    set((state) => {
+      const newDeletingIds = new Set(state.deletingGoalIds);
+      newDeletingIds.add(id);
+      return { isLoading: true, error: null, deletingGoalIds: newDeletingIds };
+    });
+
     try {
       await apiClient.delete(`/api/goals/${id}`);
       set((state) => ({
         goals: state.goals.filter((g) => g.id !== id),
         currentGoal: state.currentGoal?.id === id ? null : state.currentGoal,
+        tasks: state.currentGoal?.id === id ? [] : state.tasks,
+        lastFetched: null, // Invalidate cache to force fresh fetch next time
       }));
     } catch (error: any) {
       set({ error: error.message || 'Failed to delete goal' });
       throw error;
     } finally {
+      // Remove from deletingGoalIds after a delay to handle any in-flight fetches
+      setTimeout(() => {
+        set((state) => {
+          const newDeletingIds = new Set(state.deletingGoalIds);
+          newDeletingIds.delete(id);
+          return { deletingGoalIds: newDeletingIds };
+        });
+      }, 5000); // Keep in set for 5 seconds to catch any delayed fetches
       set({ isLoading: false });
     }
   },
@@ -412,6 +436,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       lastFetched: null,
       error: null,
       pendingGoalId: null,
+      deletingGoalIds: new Set<string>(),
       onboardingData: {},
     });
   },

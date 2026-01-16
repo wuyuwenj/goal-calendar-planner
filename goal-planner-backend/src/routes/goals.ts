@@ -121,6 +121,19 @@ export async function goalRoutes(fastify: FastifyInstance) {
 
     const input = parseResult.data;
 
+    // Check if user already has a goal (limit 1 goal per user for now)
+    const existingGoals = await prisma.goal.count({
+      where: { profileId: req.profileId },
+    });
+
+    if (existingGoals >= 1) {
+      return reply.status(400).send({
+        error: 'Goal limit reached',
+        code: 'GOAL_LIMIT_REACHED',
+        message: 'You can only have 1 active goal at a time. Delete your existing goal to create a new one.',
+      });
+    }
+
     // Middleware already blocks expired users
     // Rate limit: 3 goals per day for all active users
     const DAILY_LIMIT = 3;
