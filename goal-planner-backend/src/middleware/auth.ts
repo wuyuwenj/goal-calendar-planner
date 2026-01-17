@@ -42,7 +42,6 @@ export async function authMiddleware(
 
   // Get or create profile (using upsert to avoid race conditions)
   const now = new Date();
-  const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days trial
 
   const profile = await prisma.profile.upsert({
     where: { supabaseUserId: user.id },
@@ -50,9 +49,9 @@ export async function authMiddleware(
     create: {
       supabaseUserId: user.id,
       email: user.email!,
-      // Start 7-day free trial (premium with expiration)
-      subscriptionTier: 'premium',
-      subscriptionExpiresAt: trialEnd,
+      // Start as free tier - App Store handles free trial when user subscribes
+      subscriptionTier: 'free',
+      subscriptionExpiresAt: null,
     },
   });
 
