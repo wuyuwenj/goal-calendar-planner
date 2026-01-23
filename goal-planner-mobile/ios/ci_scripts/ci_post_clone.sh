@@ -4,12 +4,9 @@ set -e
 echo "=== Xcode Cloud Post-Clone Script ==="
 echo "CI_PRIMARY_REPOSITORY_PATH: $CI_PRIMARY_REPOSITORY_PATH"
 
-# Install CocoaPods
-echo "Installing CocoaPods..."
-gem install cocoapods --user-install
-
-# Add gem bin to PATH
-export PATH="$HOME/.gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+# Install CocoaPods via Homebrew (avoids Ruby version issues)
+echo "Installing CocoaPods via Homebrew..."
+brew install cocoapods
 
 echo "CocoaPods version: $(pod --version)"
 
