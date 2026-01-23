@@ -11,7 +11,8 @@ brew install cocoapods
 echo "CocoaPods version: $(pod --version)"
 
 # Navigate to ios directory and install pods
-cd "$CI_PRIMARY_REPOSITORY_PATH/ios"
+# The script is at goal-planner-mobile/ios/ci_scripts/, so ios is one level up
+cd "$CI_PRIMARY_REPOSITORY_PATH/goal-planner-mobile/ios"
 echo "Current directory: $(pwd)"
 
 echo "Running pod install..."
